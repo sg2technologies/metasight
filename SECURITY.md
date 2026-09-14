@@ -6,7 +6,7 @@ Please **do not** open a public GitHub issue for a suspected security
 vulnerability.
 
 Instead, report it privately via [GitHub Security Advisories](../../security/advisories/new)
-for this repository, or email **security@REPLACE-ME.example** <!-- TODO: replace with a real, monitored contact address before this repo goes public -->.
+for this repository, or email **info@sg2technologies.com**.
 
 Include:
 
