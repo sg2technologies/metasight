@@ -1,0 +1,6 @@
+# Shell scripts run inside Linux containers (Docker) or via bash even on a
+# Windows checkout — force LF regardless of the checking-out platform's
+# core.autocrlf setting. A CRLF shebang line (`#!/bin/sh\r`) breaks
+# execution inside a Linux container ("no such file or directory").
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf

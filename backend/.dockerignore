@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+logs/
+celerybeat-schedule.*
+.env
+.env.*
+!.env.production.example
+agent/
