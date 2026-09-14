@@ -1,5 +1,5 @@
 """
-End-to-end endpoint test script for the Data Governance Platform.
+End-to-end endpoint test script for the Database Governance Platform.
 
 Usage:
     python scripts/test_endpoints.py

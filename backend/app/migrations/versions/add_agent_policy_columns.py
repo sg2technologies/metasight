@@ -1,19 +1,23 @@
 """add policy columns to agent_registrations
 
 Revision ID: add_agent_policy_cols
-Revises: 906d47f6ced3
+Revises: missing_core_tables_001
 Create Date: 2026-06-17
 
 Adds live access-control policy fields to agent_registrations:
   allowed_ips, allowed_users, blocked_ops, block_mode,
   alert_on_bypass, agent_ip, config_pulled_at
+
+Re-pointed to follow missing_core_tables_001 (was 906d47f6ced3 directly) —
+that migration is what actually creates agent_registrations; see its
+docstring. Nothing in this file's upgrade()/downgrade() changed.
 """
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'add_agent_policy_cols'
-down_revision: Union[str, None] = '906d47f6ced3'
+down_revision: Union[str, None] = 'missing_core_tables_001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on:    Union[str, Sequence[str], None] = None
 

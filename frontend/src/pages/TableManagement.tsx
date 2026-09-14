@@ -65,11 +65,16 @@ export function TableManagement() {
     try {
       setLoading(true);
       const [tableData, deptData, managedData] = await Promise.all([
-        api.get('/catalog/tables'),
+        // /catalog/tables is paginated ({items, total, ...}), not a bare
+        // array — page_size=500 is its hard max (see catalog.py); this
+        // page wants "every table" for department bulk-assignment, which
+        // this endpoint's pagination doesn't fully support past 500, same
+        // as it wouldn't in Catalog.tsx's own search UI.
+        api.get('/catalog/tables?page_size=500'),
         fetchDepartments(),
         api.get('/catalog/departments/manage')
       ]);
-      setTables(tableData.data || []);
+      setTables(tableData.data?.items || []);
       setDepartments(deptData || []);
       setManagedResources(managedData.data || []);
     } catch (err: any) {

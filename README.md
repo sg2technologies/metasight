@@ -27,28 +27,26 @@ Full detail, with the exact files backing each item, is in [EDITIONS.md](EDITION
 
 ## Installation
 
-**Requirements:** Python 3.9+, Node.js 18+, PostgreSQL, Docker (for Redis/Vault via Compose — or install Redis yourself and skip Compose entirely).
+**Requirements:** Docker + Docker Compose. That's it — Postgres, Redis, Vault, the backend, and the frontend all run as containers; nothing else to install locally.
 
 ```bash
-# Infra: Redis (required) + HashiCorp Vault (optional, dev mode) via Compose
-# PostgreSQL and the app itself are not part of this compose file — see below
-docker compose up -d
-
-# Backend
-cd backend
-python -m venv venv && venv/Scripts/activate   # or `source venv/bin/activate` on Linux/macOS
-pip install -r requirements.txt
-cp .env.production.example .env                 # fill in your own secrets — never commit this file
-alembic upgrade head
-uvicorn app.main:app --reload
-
-# Frontend
-cd frontend
-npm install
-npm run dev
+cp .env.example .env      # fill in real secrets — see the comments in the file; never commit .env
+docker compose up -d --build
 ```
 
-For a full bare-metal/VM production install (PostgreSQL, Redis, systemd units, nginx/TLS, the Go agent, backups, upgrades, hardening checklist), see [DEPLOYMENT.md](DEPLOYMENT.md). Deploying against Oracle EBS/AIX specifically: [DEPLOYMENT-ORACLE-EBS-AIX.md](DEPLOYMENT-ORACLE-EBS-AIX.md).
+- **Frontend**: http://localhost:3000
+- **Backend / API**: http://localhost:8000
+- Migrations run automatically on first boot (the `backend` container runs `alembic upgrade head` before starting).
+- One-time bootstrap (create the first tenant + admin), same as the production flow in [DEPLOYMENT.md](DEPLOYMENT.md):
+
+  ```bash
+  curl -X POST http://localhost:8000/auth/setup \
+    -H "X-Setup-Secret: <the SETUP_SECRET you put in .env>" \
+    -H "Content-Type: application/json" \
+    -d '{"tenant_name": "Acme Corp", "admin_email": "admin@acme.example", "admin_password": "..."}'
+  ```
+
+This is the dev/local path. For a hardened bare-metal/VM production install (systemd units, gunicorn, nginx/TLS, the Go agent, backups, upgrades, hardening checklist — doesn't use `docker-compose.yml` at all), see [DEPLOYMENT.md](DEPLOYMENT.md). Deploying against Oracle EBS/AIX specifically: [DEPLOYMENT-ORACLE-EBS-AIX.md](DEPLOYMENT-ORACLE-EBS-AIX.md).
 
 ## Project layout
 

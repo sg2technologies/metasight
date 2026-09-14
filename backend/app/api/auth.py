@@ -58,6 +58,18 @@ def _is_locked_out(db: Session, email: str, max_attempts: int, lockout_minutes: 
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
+@router.get("/setup-status", include_in_schema=False)
+def setup_status(db: Session = Depends(get_db)):
+    """
+    Public, unauthenticated: does any user exist yet? The frontend uses this
+    to decide whether to show the one-time first-run setup screen instead of
+    the login form. Deliberately returns nothing but a boolean — no tenant
+    names, emails, or counts — this is reachable by anyone who can hit the
+    API, same as /settings/public.
+    """
+    return {"needs_setup": db.query(User).first() is None}
+
+
 @router.post(
     "/setup",
     response_model=UserResponse,

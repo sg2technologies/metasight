@@ -146,7 +146,64 @@ export function Login() {
   }, []);
 
   const platformName = branding?.platform_name ?? 'MetaSight';
-  const tagline      = branding?.tagline      ?? 'Data Governance Platform';
+  const tagline      = branding?.tagline      ?? 'Database Governance Platform';
+
+  // ── First-run setup ────────────────────────────────────────────────────
+  // MetaSight has no public self-registration — users are provisioned by an
+  // admin (POST /users, admin-only) after the very first tenant+admin exists.
+  // That first account normally comes from a curl against POST /auth/setup
+  // (see README/DEPLOYMENT.md); this screen wraps the same call so a fresh,
+  // unconfigured install has something to click instead of a terminal.
+  // /auth/setup-status is public/unauthenticated and only ever returns a
+  // boolean — it self-disables (mirroring POST /auth/setup) the moment any
+  // user exists, so this whole screen only ever appears once, on the very
+  // first visit to a fresh database.
+  const [needsSetup, setNeedsSetup]   = useState<boolean | null>(null); // null = still checking
+  const [tenantName, setTenantName]   = useState('');
+  const [setupSecret, setSetupSecret] = useState('');
+  const [confirmPw, setConfirmPw]     = useState('');
+  const [setupError, setSetupError]   = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
+
+  useEffect(() => {
+    api.get('/auth/setup-status')
+      .then(r => setNeedsSetup(!!r.data?.needs_setup))
+      .catch(() => setNeedsSetup(false)); // fail closed to the ordinary login form
+  }, []);
+
+  const handleSetupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError('');
+    if (password !== confirmPw) {
+      setSetupError('Passwords do not match.');
+      return;
+    }
+    setSetupLoading(true);
+    try {
+      await api.post(
+        '/auth/setup',
+        { tenant_name: tenantName, admin_email: email, admin_password: password },
+        { headers: { 'X-Setup-Secret': setupSecret } },
+      );
+      // Bootstrap created the account — log straight in rather than making
+      // someone re-type the password they just chose.
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+      const res = await api.post('/auth/login', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      localStorage.setItem('token', res.data.access_token);
+      navigate('/');
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setSetupError(
+        Array.isArray(detail) ? (detail[0]?.msg || 'Setup failed.') : (detail || 'Setup failed.')
+      );
+    } finally {
+      setSetupLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,8 +403,19 @@ export function Login() {
 
             {/* Form heading */}
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
-              <p className="text-sm text-slate-500">Sign in to your {platformName} workspace</p>
+              {needsSetup ? (
+                <>
+                  <h2 className="text-2xl font-bold text-white mb-1">Create your first admin</h2>
+                  <p className="text-sm text-slate-500">
+                    No account exists yet — set up {platformName} to get started.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
+                  <p className="text-sm text-slate-500">Sign in to your {platformName} workspace</p>
+                </>
+              )}
             </div>
 
             {/* Card */}
@@ -363,111 +431,256 @@ export function Login() {
               {/* Top gradient stripe */}
               <div className="h-[2px]" style={{ background: 'linear-gradient(90deg,#38BDF8,#818CF8,#A855F7)' }}/>
 
-              <form className="px-8 py-8 space-y-5" onSubmit={handleSubmit}>
-                {error && (
-                  <div
-                    className="px-4 py-3 rounded-lg text-sm text-red-300 flex items-start gap-2"
-                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}
-                  >
-                    <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                    </svg>
-                    {error}
-                  </div>
-                )}
-
-                {/* Email */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
-                    Email address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+              {needsSetup === null ? (
+                /* Still checking /auth/setup-status — avoid flashing one form then the other */
+                <div className="px-8 py-8 flex items-center justify-center gap-2 text-sm text-slate-500">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Checking…
+                </div>
+              ) : needsSetup ? (
+                <form className="px-8 py-8 space-y-5" onSubmit={handleSetupSubmit}>
+                  {setupError && (
+                    <div
+                      className="px-4 py-3 rounded-lg text-sm text-red-300 flex items-start gap-2"
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
                       </svg>
+                      {setupError}
                     </div>
+                  )}
+
+                  {/* Organization name */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Organization name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={tenantName}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTenantName(e.target.value)}
+                      placeholder="Acme Corp"
+                      className="w-full px-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
+                    />
+                  </div>
+
+                  {/* Admin email */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Admin email
+                    </label>
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                       placeholder="you@company.com"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                      className="w-full px-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
-                      onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
-                        e.target.style.borderColor = '#818CF8';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(129,140,248,0.12)';
-                      }}
-                      onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                        e.target.style.borderColor = 'rgba(129,140,248,0.2)';
-                        e.target.style.boxShadow = 'none';
-                      }}
                     />
                   </div>
-                </div>
 
-                {/* Password */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
-                      </svg>
-                    </div>
+                  {/* Admin password */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Admin password
+                    </label>
                     <input
                       type="password"
                       required
                       value={password}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                      className="w-full px-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
-                      onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
-                        e.target.style.borderColor = '#818CF8';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(129,140,248,0.12)';
-                      }}
-                      onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                        e.target.style.borderColor = 'rgba(129,140,248,0.2)';
-                        e.target.style.boxShadow = 'none';
-                      }}
+                    />
+                    {branding && (
+                      <p className="text-[10px] text-slate-600 mt-1.5">
+                        At least {branding.password_min_length} characters
+                        {branding.password_require_uppercase ? ', one uppercase letter' : ''}
+                        {branding.password_require_number ? ', one number' : ''}
+                        {branding.password_require_special ? ', one special character' : ''}.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Confirm password */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Confirm password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPw}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPw(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
                     />
                   </div>
-                </div>
 
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 px-4 rounded-lg text-sm font-bold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{
-                    background: 'linear-gradient(135deg, #38BDF8 0%, #818CF8 50%, #A855F7 100%)',
-                    boxShadow: loading ? 'none' : '0 4px 24px rgba(129,140,248,0.4), 0 1px 0 rgba(255,255,255,0.1) inset',
-                  }}
-                  onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                  onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  {/* Setup secret */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Setup secret
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={setupSecret}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSetupSecret(e.target.value)}
+                      placeholder="From SETUP_SECRET in your .env"
+                      className="w-full px-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1.5">
+                      Proves you have server access — whoever deployed this instance set this in
+                      the environment, it's not a password you choose here.
+                    </p>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={setupLoading}
+                    className="w-full py-3 px-4 rounded-lg text-sm font-bold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: 'linear-gradient(135deg, #38BDF8 0%, #818CF8 50%, #A855F7 100%)',
+                      boxShadow: setupLoading ? 'none' : '0 4px 24px rgba(129,140,248,0.4), 0 1px 0 rgba(255,255,255,0.1) inset',
+                    }}
+                  >
+                    {setupLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Setting up…
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        Create admin & sign in
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <form className="px-8 py-8 space-y-5" onSubmit={handleSubmit}>
+                  {error && (
+                    <div
+                      className="px-4 py-3 rounded-lg text-sm text-red-300 flex items-start gap-2"
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
                       </svg>
-                      Authenticating…
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      Sign in to {platformName}
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
-                      </svg>
-                    </span>
+                      {error}
+                    </div>
                   )}
-                </button>
-              </form>
+
+                  {/* Email */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Email address
+                    </label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+                        </svg>
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                        placeholder="you@company.com"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
+                        onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
+                          e.target.style.borderColor = '#818CF8';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(129,140,248,0.12)';
+                        }}
+                        onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                          e.target.style.borderColor = 'rgba(129,140,248,0.2)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+                        </svg>
+                      </div>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
+                        onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
+                          e.target.style.borderColor = '#818CF8';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(129,140,248,0.12)';
+                        }}
+                        onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                          e.target.style.borderColor = 'rgba(129,140,248,0.2)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 px-4 rounded-lg text-sm font-bold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: 'linear-gradient(135deg, #38BDF8 0%, #818CF8 50%, #A855F7 100%)',
+                      boxShadow: loading ? 'none' : '0 4px 24px rgba(129,140,248,0.4), 0 1px 0 rgba(255,255,255,0.1) inset',
+                    }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Authenticating…
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        Sign in to {platformName}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                </form>
+              )}
             </div>
 
             {/* Trust indicators */}

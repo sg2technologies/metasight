@@ -125,7 +125,7 @@ def list_catalog_tables(
         elif not t_roles:
             t_roles = ["admin", "analyst"]
 
-        if user_role != "admin" and user_role not in t_roles:
+        if user_role not in ("admin", "superadmin") and user_role not in t_roles:
             continue
 
         ds = t.schema.database.data_source if t.schema and t.schema.database else None
