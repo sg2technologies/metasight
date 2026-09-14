@@ -1,0 +1,234 @@
+﻿Diagnose log at 2026-09-14T07:38:07Z
+
+AppPath: C:\Program Files\Git\mingw64\bin\git-credential-manager.exe
+InstallDir: C:\Program Files\Git\mingw64\bin\
+Version: 2.7.3+5fa7116896c82164996a609accd1c5ad90fe730a
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 26200)
+Reading environment variables... OK
+ Variables:
+CLAUDE_CODE_CHILD_SESSION=1
+CLAUDE_CODE_MESSAGING_TOKEN=7fb0400c4b25030c3db3eb9a7fd34e8c
+VSCODE_PID=34040
+VSCODE_CWD=C:\Users\gopin\AppData\Local\Programs\Microsoft VS Code
+EFC_11928_4126798990=1
+EFC_11928_3789132940=1
+OS=Windows_NT
+TMP=C:\Users\gopin\AppData\Local\Temp
+CLAUDE_EFFORT=high
+PSModulePath=C:\Program Files\WindowsPowerShell\Modules;C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules;C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platform\PowerShell
+SHLVL=1
+VSCODE_L10N_BUNDLE_LOCATION=
+VSCODE_CRASH_REPORTER_PROCESS_TYPE=extensionHost
+ELECTRON_RUN_AS_NODE=1
+CLAUDE_CODE_ENTRYPOINT=claude-vscode
+EFC_11928_1262719628=1
+FPS_BROWSER_USER_PROFILE_STRING=Default
+APPDATA=C:\Users\gopin\AppData\Roaming
+OneDriveConsumer=C:\Users\gopin\OneDrive
+EFC_11928_2283032206=1
+USERDOMAIN=LAPTOP-EDKIAC17
+ProgramData=C:\ProgramData
+PROCESSOR_REVISION=aa04
+NUMBER_OF_PROCESSORS=18
+ProgramFiles(x86)=C:\Program Files (x86)
+ChocolateyInstall=C:\ProgramData\chocolatey
+FPS_BROWSER_APP_PROFILE_STRING=Internet Explorer
+BOOTSTRAP_ADMIN_PASSWORD=ChangeMe@123
+PROCESSOR_LEVEL=6
+CLAUDE_CODE_SESSION_ID=50dcb3c5-bb14-4db6-9c3f-7f8cfb970391
+SESSIONNAME=Console
+COMSPEC=C:\WINDOWS\system32\cmd.exe
+WINDIR=C:\WINDOWS
+NoDefaultCurrentDirectoryInExePath=1
+USERPROFILE=C:\Users\gopin
+VSCODE_HANDLES_UNCAUGHT_ERRORS=true
+CLAUDE_PID=21068
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+VSCODE_NLS_CONFIG={"userLocale":"en-us","osLocale":"en-in","resolvedLanguage":"en","defaultMessagesFile":"C:\\Users\\gopin\\AppData\\Local\\Programs\\Microsoft VS Code\\645f29cc31\\resources\\app\\out\\nls.messages.json","locale":"en-us","availableLanguages":{}}
+VSCODE_IPC_HOOK=\\.\pipe\4631f392-1.137.0-main-sock
+CHROME_CRASHPAD_PIPE_NAME=\\.\pipe\crashpad_34040_ITKPFDFICWLXZAOY
+CLAUDE_CODE_ENABLE_TASKS=0
+CLAUDE_CODE_SESSION_ATTENDED=1
+COMPUTERNAME=LAPTOP-EDKIAC17
+SHELL=C:\Program Files\Git\bin\bash.exe
+EFC_11928_1592913036=1
+HOMEDRIVE=C:
+CLAUDE_AGENT_SDK_VERSION=0.3.269
+HOMEPATH=\Users\gopin
+SYSTEMROOT=C:\WINDOWS
+PUBLIC=C:\Users\Public
+AI_AGENT=claude-code_2-1-269_agent
+COMMONPROGRAMFILES=C:\Program Files\Common Files
+ProgramW6432=C:\Program Files
+EXEPATH=C:\Program Files\Git\bin
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 170 Stepping 4, GenuineIntel
+VIRTUAL_ENV=c:\Gopi_dev\metasight\metasight\backend\venv
+GENICAM_GENTL64_PATH=C:\Program Files (x86)\Common Files\MVS\Runtime\Win64_x64
+CLAUDE_CODE_EXECPATH=C:\Users\gopin\.vscode\extensions\anthropic.claude-code-2.1.269-win32-x64\resources\native-binary\claude.exe
+GIT_EDITOR=true
+CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true
+LOGONSERVER=\\LAPTOP-EDKIAC17
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.PY;.PYW
+LOCALAPPDATA=C:\Users\gopin\AppData\Local
+MSYSTEM=MINGW64
+ZES_ENABLE_SYSMAN=1
+BOOTSTRAP_ADMIN_EMAIL=admin@dpdp.local
+PLINK_PROTOCOL=ssh
+ChocolateyLastPathUpdate=133953859123018624
+GENICAM_GENTL32_PATH=C:\Program Files (x86)\Common Files\MVS\Runtime\Win32_i86
+OneDrive=C:\Users\gopin\OneDrive
+EFC_11928_2775293581=1
+VSCODE_ESM_ENTRYPOINT=vs/workbench/api/node/extensionHostProcess
+USERNAME=gopin
+CLAUDECODE=1
+DriverData=C:\Windows\System32\Drivers\DriverData
+SYSTEMDRIVE=C:
+TEMP=C:\Users\gopin\AppData\Local\Temp
+COREPACK_ENABLE_AUTO_PIN=0
+VSCODE_CODE_CACHE_PATH=C:\Users\gopin\AppData\Roaming\Code\CachedData\645f29cc3176500b4b5762ba887cf2a7f0ffdf2c
+MCP_CONNECTION_NONBLOCKING=true
+CommonProgramW6432=C:\Program Files\Common Files
+GOPATH=C:\Users\gopin\go
+CLAUDE_CODE_MESSAGING_SOCKET=\\.\pipe\LOCAL\cc-msg-4c6cb5c95688cfb712ce347cccdf1161
+MVCAM_GENICAM_CLPROTOCOL=C:\Program Files (x86)\Common Files\MVS\Runtime\CLProtocol
+ALLUSERSPROFILE=C:\ProgramData
+EFC_11928_344590478=1
+JWT_PUBLIC_KEY_FILE=C:\Gopi_dev\sg2-license-manager\scripts\jwt_public.pem
+GIT_TRACE2_PARENT_SID=be895979-9a38-40d0-a854-6b4d0976869a
+PROCESSOR_ARCHITECTURE=AMD64
+JWT_PRIVATE_KEY_FILE=C:\Gopi_dev\sg2-license-manager\scripts\jwt_private.pem
+PWD=C:/Gopi_dev/metasight/metasight
+USERDOMAIN_ROAMINGPROFILE=LAPTOP-EDKIAC17
+PATH=C:\Users\gopin\bin;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\local\bin;C:\Program Files\Git\usr\bin;C:\Program Files\Git\usr\bin;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\gopin\bin;C:\Gopi_dev\metasight\metasight\backend\venv\Scripts;C:\Python313\Scripts;C:\Python313;C:\Program Files (x86)\Common Files\MVS\Runtime\Win32_i86;C:\Program Files (x86)\Common Files\MVS\Runtime\Win64_x64;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0;C:\WINDOWS\System32\OpenSSH;C:\Program Files\dotnet;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit;C:\Program Files\nodejs;C:\ProgramData\chocolatey\bin;C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files\PostgreSQL\18\bin;C:\Program Files\Go\bin;C:\Program Files\PuTTY;C:\Program Files\Git\cmd;C:\Users\gopin\.cargo\bin;C:\Users\gopin\.local\bin;C:\Users\gopin\AppData\Local\Microsoft\WindowsApps;C:\Users\gopin\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\gopin\.dotnet\tools;C:\Users\gopin\AppData\Local\GitHubDesktop\bin;C:\Users\gopin\AppData\Roaming\npm;C:\Users\gopin\AppData\Local\Programs\Antigravity\bin;C:\Users\gopin\go\bin;C:\Program Files (x86)\Nmap;C:\Program Files (x86)\Nmap;C:\Users\gopin\AppData\Local\Microsoft\WinGet\Packages\GitHub.Copilot_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Program Files\Git\usr\bin;C:\Users\gopin\AppData\Local\Programs\Ollama;C:\Program Files\Git\usr\bin\vendor_perl;C:\Program Files\Git\usr\bin\core_perl
+PROGRAMFILES=C:\Program Files
+TERM=xterm-256color
+_=C:/Program Files/Git/mingw64/bin/git-credential-manager
+HOME=C:\Users\gopin
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\gopin\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\gopin\AppData\Local\Temp\9b964f9b8ad32d081c2725cb'... OK
+Reading from temporary file 'C:\Users\gopin\AppData\Local\Temp\9b964f9b8ad32d081c2725cb'... OK
+Deleting temporary file 'C:\Users\gopin\AppData\Local\Temp\9b964f9b8ad32d081c2725cb'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\gopin
+UserDataDirectoryPath: C:\Users\gopin\.gcm
+GetCurrentDirectory(): C:\Gopi_dev\metasight\metasight
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: True
+Exception: None
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com...Sending HEAD request to https://example.com... warning: HEAD request failed
+Sending HEAD request to http://httpforever.com... warning: HEAD request failed
+ OK
+Acquiring free TCP port... OK
+Testing local HTTP loopback connections...
+Creating new HTTP listener for http://localhost:11521/... OK
+Waiting for loopback connection... OK
+Writing response... OK
+Waiting for response data... OK
+Loopback connection data OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.53.0.windows.2'
+Locating current repository...Git repository at 'C:/Gopi_dev/metasight/metasight/.git'
+ OK
+Listing all Git configuration... OK
+Git configuration:
+file:C:/Program Files/Git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.required=true
+file:C:/Program Files/Git/etc/gitconfig	http.sslbackend=schannel
+file:C:/Program Files/Git/etc/gitconfig	core.autocrlf=true
+file:C:/Program Files/Git/etc/gitconfig	core.fscache=true
+file:C:/Program Files/Git/etc/gitconfig	core.symlinks=false
+file:C:/Program Files/Git/etc/gitconfig	pull.rebase=false
+file:C:/Program Files/Git/etc/gitconfig	credential.helper=manager
+file:C:/Program Files/Git/etc/gitconfig	credential.https://dev.azure.com.usehttppath=true
+file:C:/Program Files/Git/etc/gitconfig	init.defaultbranch=master
+file:C:/Users/gopin/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/gopin/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/gopin/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/gopin/.gitconfig	filter.lfs.required=true
+file:C:/Users/gopin/.gitconfig	user.name=gopithecheetah
+file:C:/Users/gopin/.gitconfig	user.email=50859099+ngopi37@users.noreply.github.com
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	remote.origin.url=https://github.com/sg2technologies/metasight.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.main.remote=origin
+file:.git/config	branch.main.merge=refs/heads/main
+file:.git/config	branch.chore/import-community-source.vscode-merge-base=origin/main
+file:.git/config	branch.chore/import-community-source.remote=origin
+file:.git/config	branch.chore/import-community-source.merge=refs/heads/chore/import-community-source
+file:.git/config	branch.docs/readme-enterprise-and-gemini-cleanup.vscode-merge-base=origin/main
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: True
+Exception: None
+Log:
+Broker is not enabled.
+Flow type is: Auto
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\gopin\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\gopin\AppData\Local\.IdentityService\msal.cache
+Creating cache helper... OK
+Verifying MSAL token cache persistence... OK
+
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: True
+Exception: None
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint... OK
+
