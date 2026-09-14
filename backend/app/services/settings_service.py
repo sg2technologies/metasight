@@ -15,7 +15,7 @@ from app.models.models import SystemSettings
 DEFAULT_SETTINGS: dict[str, Any] = {
     "branding": {
         "platform_name": "MetaSight",
-        "tagline": "Data Governance Platform",
+        "tagline": "Database Governance Platform",
         "logo_url": None,         # URL or null (uses built-in SVG)
         "primary_color": "#818CF8",
         "accent_color": "#38BDF8",
@@ -127,7 +127,7 @@ def get_public_settings(tenant_id: int, db: Session) -> dict:
     branding = cfg.get("branding", {})
     return {
         "platform_name": branding.get("platform_name", "MetaSight"),
-        "tagline":        branding.get("tagline", "Data Governance Platform"),
+        "tagline":        branding.get("tagline", "Database Governance Platform"),
         "logo_url":       branding.get("logo_url"),
         "primary_color":  branding.get("primary_color", "#818CF8"),
         "accent_color":   branding.get("accent_color", "#38BDF8"),

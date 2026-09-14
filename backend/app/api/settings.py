@@ -211,7 +211,7 @@ def test_smtp(
         )
 
     msg = MIMEText(
-        "This is a test email from MetaSight Data Governance Platform.\n"
+        "This is a test email from MetaSight Database Governance Platform.\n"
         "SMTP configuration is working correctly."
     )
     msg["Subject"] = "MetaSight — SMTP Test"

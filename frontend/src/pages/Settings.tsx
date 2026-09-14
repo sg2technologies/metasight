@@ -337,7 +337,7 @@ function BrandingTab({ cfg, set }: { cfg: BrandingCfg; set: (p: Partial<Branding
           <TextInput value={cfg.platform_name} onChange={v => set({ platform_name: v })} placeholder="MetaSight" />
         </Field>
         <Field label="Tagline">
-          <TextInput value={cfg.tagline} onChange={v => set({ tagline: v })} placeholder="Data Governance Platform" />
+          <TextInput value={cfg.tagline} onChange={v => set({ tagline: v })} placeholder="Database Governance Platform" />
         </Field>
         <Field label="Logo URL" hint="Leave empty to use the built-in MetaSight logo.">
           <TextInput value={cfg.logo_url ?? ''} onChange={v => set({ logo_url: v || null })} placeholder="https://your-cdn.com/logo.svg" />

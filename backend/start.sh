@@ -48,9 +48,9 @@ ok()      { printf "${C_GRN}  ✓${C_RST} %s\n" "$*"; }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 printf "\n"
-printf "${C_BOLD}${C_BLU}╔══════════════════════════════════════════════════╗${C_RST}\n"
-printf "${C_BOLD}${C_BLU}║${C_RST}  ${C_BOLD}MetaSight${C_RST} — Enterprise Data Governance Platform  ${C_BOLD}${C_BLU}║${C_RST}\n"
-printf "${C_BOLD}${C_BLU}╚══════════════════════════════════════════════════╝${C_RST}\n"
+printf "${C_BOLD}${C_BLU}╔═══════════════════════════════════════════════════════╗${C_RST}\n"
+printf "${C_BOLD}${C_BLU}║${C_RST}  ${C_BOLD}MetaSight${C_RST} — Enterprise Database Governance Platform  ${C_BOLD}${C_BLU}║${C_RST}\n"
+printf "${C_BOLD}${C_BLU}╚═══════════════════════════════════════════════════════╝${C_RST}\n"
 printf "\n"
 
 # ── 1. Python venv ────────────────────────────────────────────────────────────

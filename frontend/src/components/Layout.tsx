@@ -88,7 +88,7 @@ export function Layout() {
               MetaSight
             </span>
             <p className="text-[9px] font-bold tracking-[0.2em] text-slate-500 uppercase mt-0.5">
-              DATA GOVERNANCE PLATFORM
+              DATABASE GOVERNANCE PLATFORM
             </p>
           </div>
         </div>

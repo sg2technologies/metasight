@@ -43,7 +43,7 @@ def prompt(label: str, secret: bool = False) -> str:
 
 def main():
     print("=" * 50)
-    print("  Data Governance Platform — Superuser Setup")
+    print("  Database Governance Platform — Superuser Setup")
     print("=" * 50)
     print(f"  API: {API_BASE}\n")
 

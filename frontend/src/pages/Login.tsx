@@ -146,7 +146,7 @@ export function Login() {
   }, []);
 
   const platformName = branding?.platform_name ?? 'MetaSight';
-  const tagline      = branding?.tagline      ?? 'Data Governance Platform';
+  const tagline      = branding?.tagline      ?? 'Database Governance Platform';
 
   // ── First-run setup ────────────────────────────────────────────────────
   // MetaSight has no public self-registration — users are provisioned by an
