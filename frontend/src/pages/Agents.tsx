@@ -191,7 +191,7 @@ function TypeBadge({ type, mode }: { type: string; mode: string }) {
 
 // ── Register Modal ────────────────────────────────────────────────────────────
 
-function RegisterModal({ onClose, onCreated }: { onClose: () => void; onCreated: (a: Agent) => void }) {
+function RegisterModal({ onClose, onCreated, pamAvailable }: { onClose: () => void; onCreated: (a: Agent) => void; pamAvailable: boolean }) {
   const [name, setName]       = useState('');
   const [mode, setMode]       = useState<'db' | 'pam'>('db');
   const [dbType, setDbType]   = useState('postgres');
@@ -202,6 +202,13 @@ function RegisterModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
   const submit = async () => {
     if (!name.trim()) { setError('Agent name is required'); return; }
+    // Belt-and-suspenders: the picker below already prevents mode from
+    // becoming 'pam' when PAM isn't available, but guard the actual
+    // submit too rather than trust UI state alone against a stale prop.
+    if (mode === 'pam' && !pamAvailable) {
+      setError('PAM endpoint agents require MetaSight Enterprise — not installed on this server.');
+      return;
+    }
     setLoading(true); setError('');
     try {
       const { data } = await api.post<Agent>(`${agentBase(mode)}/`, {
@@ -239,25 +246,34 @@ function RegisterModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-450 dark:text-slate-555 uppercase tracking-wider block">Agent Deployment Mode</label>
               <div className="grid grid-cols-2 gap-3">
-                {(['db', 'pam'] as const).map(m => (
-                  <button key={m} onClick={() => setMode(m)}
-                    className={cn(
-                      "p-4 rounded-xl text-left border transition-all duration-150",
-                      mode === m 
-                        ? 'bg-brand-indigo/5 border-brand-indigo ring-1 ring-brand-indigo' 
-                        : 'bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-900/60 dark:hover:bg-slate-850/60 border-slate-200 dark:border-slate-800'
-                    )}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      {m === 'db' ? <Database size={15} className="text-brand-blue" /> : <Monitor size={15} className="text-brand-purple" />}
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">{m === 'db' ? 'Database Agent' : 'PAM endpoint'}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                      {m === 'db'
-                        ? 'Monitors native database direct logins, transactions & schemas.'
-                        : 'Records user workspace, keystrokes, screenshots & blocklists.'}
-                    </p>
-                  </button>
-                ))}
+                {(['db', 'pam'] as const).map(m => {
+                  const locked = m === 'pam' && !pamAvailable;
+                  return (
+                    <button key={m} onClick={() => !locked && setMode(m)} disabled={locked}
+                      title={locked ? 'Requires MetaSight Enterprise — not installed on this server' : undefined}
+                      className={cn(
+                        "p-4 rounded-xl text-left border transition-all duration-150",
+                        locked
+                          ? 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-50 cursor-not-allowed'
+                          : mode === m
+                            ? 'bg-brand-indigo/5 border-brand-indigo ring-1 ring-brand-indigo'
+                            : 'bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-900/60 dark:hover:bg-slate-850/60 border-slate-200 dark:border-slate-800'
+                      )}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        {m === 'db' ? <Database size={15} className="text-brand-blue" /> : <Monitor size={15} className="text-brand-purple" />}
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">{m === 'db' ? 'Database Agent' : 'PAM endpoint'}</span>
+                        {locked && <Lock size={11} className="text-slate-400 dark:text-slate-500 ml-auto" />}
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                        {m === 'db'
+                          ? 'Monitors native database direct logins, transactions & schemas.'
+                          : locked
+                            ? 'Enterprise only — not installed on this server.'
+                            : 'Records user workspace, keystrokes, screenshots & blocklists.'}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1670,6 +1686,11 @@ export function Agents() {
   const [search, setSearch]         = useState('');
   const [modeFilter, setModeFilter] = useState<'all' | 'db' | 'pam'>('all');
   const [newKey, setNewKey]         = useState<{ name: string; key: string } | null>(null);
+  // Whether metasight_enterprise is actually installed on this backend —
+  // derived from the same /pam/agents probe loadAgents already makes below,
+  // not a separate call. Defaults to false (locked) until proven otherwise,
+  // so a slow/failed first load never briefly offers PAM mode in Community.
+  const [pamAvailable, setPamAvailable] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadAgents = useCallback(async () => {
@@ -1684,6 +1705,7 @@ export function Agents() {
     const dbAgents  = dbRes.status  === 'fulfilled' ? dbRes.value.data  : [];
     const pamAgents = pamRes.status === 'fulfilled' ? pamRes.value.data : [];
     setAgents([...dbAgents, ...pamAgents]);
+    setPamAvailable(pamRes.status === 'fulfilled');
     setLoading(false);
   }, []);
 
@@ -1982,7 +2004,7 @@ export function Agents() {
       </div>
 
       {showRegister && (
-        <RegisterModal onClose={() => setShowRegister(false)} onCreated={handleCreated} />
+        <RegisterModal onClose={() => setShowRegister(false)} onCreated={handleCreated} pamAvailable={pamAvailable} />
       )}
     </div>
   );
