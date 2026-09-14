@@ -1,0 +1,31 @@
+[Unit]
+Description=MetaSight Celery Worker (scan ingestion, native scanners)
+After=network.target redis-server.service postgresql.service metasight-api.service
+Wants=redis-server.service postgresql.service
+
+[Service]
+Type=simple
+User=metasight
+Group=metasight
+WorkingDirectory=/opt/metasight/backend
+EnvironmentFile=/etc/metasight/backend.env
+
+# --concurrency: tune to workload — scan/ingestion tasks are I/O-bound against
+# target databases, so concurrency can reasonably exceed CPU core count.
+ExecStart=/opt/metasight/backend/venv/bin/celery -A app.workers.celery_app.celery_app worker \
+    --loglevel=info \
+    --concurrency=4 \
+    --logfile=/opt/metasight/backend/logs/celery-worker.log
+
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/metasight/backend/logs
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

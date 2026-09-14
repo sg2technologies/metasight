@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  --font-display: 'Outfit', 'Manrope', 'Inter', sans-serif;
+  
+  --color-brand-blue: #2563eb;
+  --color-brand-indigo: #4f46e5;
+  --color-brand-purple: #7c3aed;
+  --color-brand-green: #22c55e;
+  --color-brand-orange: #f59e0b;
+  --color-brand-red: #ef4444;
+}
+
+/* Base Styles */
+@layer base {
+  html, body {
+    @apply font-sans antialiased transition-colors duration-200;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+
+  /* Custom inputs & interactive elements styling */
+  input, select, textarea {
+    @apply focus:ring-2 focus:ring-brand-indigo/25 focus:border-brand-indigo outline-none transition-all duration-150;
+  }
+  
+  button {
+    @apply cursor-pointer transition-all duration-150;
+  }
+}
+
+/* Custom Scrollbar for modern aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Premium Card Glassmorphism and shadows */
+.premium-card {
+  @apply rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] transition-all duration-200 hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_6px_28px_rgba(0,0,0,0.5)];
+}
+
+.glass-header {
+  @apply sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800;
+}
+
+/* Sleek Badge Layouts */
+.premium-badge {
+  @apply inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-semibold rounded-md tracking-wide uppercase;
+}
+
+/* Clean Form inputs styling */
+.premium-input {
+  @apply w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-lg outline-none transition-all duration-150 focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/15;
+}
+
+/* Allow utility classes (like pl-8, pl-9, pr-8, etc.) to override padding of premium-input */
+.premium-input[class*="pl-"] {
+  padding-left: unset;
+}
+.premium-input[class*="pr-"] {
+  padding-right: unset;
+}
+
+.premium-btn {
+  @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all duration-150 active:scale-[0.98];
+}
+
+.premium-btn-primary {
+  @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all duration-150 active:scale-[0.98] bg-brand-indigo hover:bg-brand-indigo/90 text-white shadow-brand-indigo/10 focus-visible:outline-brand-indigo;
+}
+
+.premium-btn-secondary {
+  @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all duration-150 active:scale-[0.98] bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60 focus-visible:outline-slate-500;
+}
