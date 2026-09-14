@@ -6,16 +6,6 @@
 # up` over minimal image size or production process management.
 FROM python:3.11-slim
 
-# build-essential + libpq-dev: most of requirements.txt's DB drivers ship
-# manylinux wheels and don't need this, but a couple of transitive deps
-# don't always publish one for every platform/Python combination — cheap
-# insurance against an obscure "no wheel, compiling from source" failure.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 COPY requirements.txt .

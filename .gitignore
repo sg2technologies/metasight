@@ -30,6 +30,9 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# ── Local agent tooling state (never project content) ───────────────────────
+.claude/
+
 # ── Secrets/local scratch (never commit) ───────────────────────────────────────
 *.pem
 *.key
