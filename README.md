@@ -27,9 +27,13 @@ Full detail, with the exact files backing each item, is in [EDITIONS.md](EDITION
 
 ## Installation
 
-**Requirements:** Python 3.9+, Node.js 18+, PostgreSQL, Redis.
+**Requirements:** Python 3.9+, Node.js 18+, PostgreSQL, Docker (for Redis/Vault via Compose — or install Redis yourself and skip Compose entirely).
 
 ```bash
+# Infra: Redis (required) + HashiCorp Vault (optional, dev mode) via Compose
+# PostgreSQL and the app itself are not part of this compose file — see below
+docker compose up -d
+
 # Backend
 cd backend
 python -m venv venv && venv/Scripts/activate   # or `source venv/bin/activate` on Linux/macOS
@@ -51,8 +55,6 @@ For a full bare-metal/VM production install (PostgreSQL, Redis, systemd units, n
 ```
 backend/     FastAPI (Python) — the API, scanners, policy/masking engine
 frontend/    React 19 + Vite
-enterprise/  Not in this repo — a separate private distribution that
-             depends on this backend/frontend, never the reverse
 ```
 
 Stack: FastAPI + PostgreSQL (metadata store) + Redis/Celery (async scan jobs) + React/Vite. HashiCorp Vault is optional for secrets; encrypted credential storage is the default.
