@@ -6,6 +6,9 @@ __pycache__/
 *.db
 backend/logs/
 backend/celerybeat-schedule.*
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
 .env
 .env.*
 !.env.example

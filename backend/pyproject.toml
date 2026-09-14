@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metasight"
+version = "1.0.0"
+description = "MetaSight Community — multi-tenant data catalog, PII discovery, masking/tokenization/RLS, policy engine, and native DAM polling."
+requires-python = ">=3.9"
+dynamic = ["dependencies"]
+
+# requirements.txt stays the single source of truth for pinned versions (it's
+# what DEPLOYMENT.md's `pip install -r requirements.txt` already uses, and
+# what CI should keep using directly for Community's own install) — this
+# pyproject.toml exists so `app` is *also* a normal installable package,
+# which is what lets metasight-enterprise (../enterprise/) declare a real
+# dependency on it instead of relying on working-directory conventions.
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["app*"]

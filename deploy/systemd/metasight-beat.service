@@ -1,0 +1,36 @@
+[Unit]
+Description=MetaSight Celery Beat (scheduler — PAM JIT auto-revoke, native DAM polling)
+After=network.target redis-server.service postgresql.service metasight-api.service
+Wants=redis-server.service postgresql.service
+
+[Service]
+Type=simple
+User=metasight
+Group=metasight
+WorkingDirectory=/opt/metasight/backend
+EnvironmentFile=/etc/metasight/backend.env
+
+ExecStart=/opt/metasight/backend/venv/bin/celery -A app.workers.celery_app.celery_app beat \
+    --loglevel=info \
+    --schedule=/opt/metasight/backend/celerybeat-schedule \
+    --logfile=/opt/metasight/backend/logs/celery-beat.log
+
+# Restart=always (not on-failure): this process is the ONLY thing that revokes
+# expired PAM JIT privileges (SUPERUSER/DBA-level grants) — see
+# app/workers/tasks.py:revoke_expired_pam_privileges. If this unit is down,
+# expired elevated privileges stay live on target databases with nothing
+# revoking them. Run exactly ONE instance of this unit cluster-wide — Celery
+# beat is not safe to run active-active; a second instance double-schedules
+# every periodic task.
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/metasight/backend/logs /opt/metasight/backend
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

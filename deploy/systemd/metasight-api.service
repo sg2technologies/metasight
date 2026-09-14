@@ -1,0 +1,42 @@
+[Unit]
+Description=MetaSight API (FastAPI via gunicorn/uvicorn workers)
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=metasight
+Group=metasight
+WorkingDirectory=/opt/metasight/backend
+EnvironmentFile=/etc/metasight/backend.env
+
+# Schema changes are exclusively Alembic's job — run the migration once,
+# synchronously, before the API starts accepting traffic. This replaced an
+# in-app Base.metadata.create_all() that ran on every worker's boot and let
+# the live schema drift out of sync with Alembic's migration history.
+ExecStartPre=/opt/metasight/backend/venv/bin/alembic upgrade head
+
+# Tune --workers to ~(2 * CPU cores) + 1. Binds to loopback only — nginx
+# terminates TLS and reverse-proxies to this address (see deploy/nginx/metasight.conf).
+ExecStart=/opt/metasight/backend/venv/bin/gunicorn app.main:app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --access-logfile /opt/metasight/backend/logs/gunicorn-access.log \
+    --error-logfile /opt/metasight/backend/logs/gunicorn-error.log
+
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/metasight/backend/logs
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
