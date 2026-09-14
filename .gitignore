@@ -1,0 +1,40 @@
+# ── Python / backend ──────────────────────────────────────────────────────────
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.db
+backend/logs/
+backend/celerybeat-schedule.*
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# ── Go agent ──────────────────────────────────────────────────────────────────
+backend/agent/dist/
+backend/agent/gomodcache/
+backend/agent/*.exe
+backend/agent/*.exe~
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
+# ── Editors / OS ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Secrets/local scratch (never commit) ───────────────────────────────────────
+*.pem
+*.key
+scratch/
+
+# ── Not part of the Community (public) repo ────────────────────────────────────
+# enterprise/ is its own private repository (metasight-enterprises) — never
+# tracked here. go-compiler/ is an accidental ~49k-file Go SDK source tree
+# that ended up in this working directory; it isn't part of the product.
+/enterprise/
+/go-compiler/
