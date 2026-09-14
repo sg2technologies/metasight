@@ -96,6 +96,12 @@ services:
         condition: service_healthy
     environment:
       RUN_MIGRATIONS: "true"        # only this service runs `alembic upgrade head` — see docker-entrypoint.sh
+      # uvicorn --reload's file watcher (watchfiles) misses changes to this
+      # bind-mounted source tree on Windows/WSL2 — OS-level file-change
+      # events don't reliably cross the bind-mount boundary. Polling is
+      # slower (checks every ~0.3s instead of reacting to an OS event) but
+      # actually works everywhere.
+      WATCHFILES_FORCE_POLLING: "true"
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env — see .env.example}
       POSTGRES_DB: ${POSTGRES_DB:-metadata_db}
