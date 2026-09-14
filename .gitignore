@@ -34,6 +34,8 @@ Thumbs.db
 *.pem
 *.key
 scratch/
+*.log
+gcm-diagnose.log
 
 # ── Not part of the Community (public) repo ────────────────────────────────────
 # enterprise/ is its own private repository (metasight-enterprises) — never
