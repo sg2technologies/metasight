@@ -31,6 +31,7 @@ from app.ingestion.native_scanner import (
     _upsert_table,
     _upsert_column,
     _detect_pii,
+    _resolve_host,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,11 @@ def _g(config: dict, *keys: str, default: str = "") -> str:
         if k in config and config[k]:
             return str(config[k])
     return default
+
+
+def _gh(config: dict, *keys: str, default: str = "localhost") -> str:
+    """Same as _g, but resolves a Docker-internal host (see native_scanner._resolve_host)."""
+    return _resolve_host(_g(config, *keys, default=default))
 
 
 # ── MongoDB ───────────────────────────────────────────────────────────────────
@@ -117,7 +123,7 @@ def scan_mongodb(
             "pymongo is not installed. Run: pip install pymongo"
         )
 
-    host     = _g(config, "host", "hostname", default="localhost")
+    host     = _gh(config, "host", "hostname", default="localhost")
     port     = int(_g(config, "port", default="27017"))
     username = _g(config, "user", "username")
     password = _g(config, "password")
@@ -207,7 +213,7 @@ def scan_elasticsearch(
     db: Session,
     connector_type: str = "elasticsearch",
 ) -> dict:
-    host   = _g(config, "host", "hostname", default="localhost")
+    host   = _gh(config, "host", "hostname", default="localhost")
     port   = int(_g(config, "port", default="9200"))
     scheme = _g(config, "scheme", "protocol", default="http")
     user   = _g(config, "user", "username")
@@ -278,7 +284,7 @@ def scan_cassandra(
     except ImportError:
         raise ImportError("Run: pip install cassandra-driver")
 
-    host     = _g(config, "host", "hostname", default="localhost")
+    host     = _gh(config, "host", "hostname", default="localhost")
     port     = int(_g(config, "port", default="9042"))
     user     = _g(config, "user", "username")
     passwd   = _g(config, "password")
@@ -402,7 +408,7 @@ def scan_redis(
     except ImportError:
         raise ImportError("Run: pip install redis")
 
-    host   = _g(config, "host", "hostname", default="localhost")
+    host   = _gh(config, "host", "hostname", default="localhost")
     port   = int(_g(config, "port", default="6379"))
     passwd = _g(config, "password")
     db_num = int(_g(config, "database", "db", default="0"))
