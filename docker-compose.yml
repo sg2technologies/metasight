@@ -122,6 +122,12 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    extra_hosts:
+      # Lets a Data Source pointed at "host.docker.internal" reach a database
+      # running on your machine but outside this compose stack (e.g. a local
+      # Postgres install). "localhost" from inside this container means the
+      # container itself, not your host — use host.docker.internal instead.
+      - "host.docker.internal:host-gateway"
 
   # ── Celery worker (async scan jobs) ─────────────────────────────────────────
   celery-worker:
@@ -151,6 +157,8 @@ services:
       ENV: development
     volumes:
       - ./backend:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     entrypoint: ["./docker-entrypoint.sh"]
     command: ["celery", "-A", "app.workers.celery_app.celery_app", "worker", "--loglevel=info"]
 

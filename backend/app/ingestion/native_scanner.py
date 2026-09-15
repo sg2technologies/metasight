@@ -31,6 +31,7 @@ NotImplementedError so the caller can fall back gracefully.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from typing import Optional
@@ -214,19 +215,19 @@ def list_schemas_with_stats(source_type: str, config: dict) -> list:
 
     try:
         with engine.connect() as conn:
-            return _fast_schema_stats(conn, ct, excluded)
-    except Exception as exc:
-        logger.warning("Fast schema stats failed for %s, using inspector fallback: %s", source_type, exc)
-        try:
-            inspector = inspect(engine)
-            excl_lower = {e.lower() for e in excluded}
-            return [
-                {"schema_name": s, "table_count": 0, "estimated_rows": 0}
-                for s in inspector.get_schema_names()
-                if s.lower() not in excl_lower
-            ]
-        except Exception:
-            return []
+            try:
+                return _fast_schema_stats(conn, ct, excluded)
+            except Exception as exc:
+                # Fast aggregate query unsupported/unauthorized for this connector —
+                # fall back to a plain schema-name listing via SQLAlchemy's inspector.
+                logger.warning("Fast schema stats failed for %s, using inspector fallback: %s", source_type, exc)
+                inspector = inspect(engine)
+                excl_lower = {e.lower() for e in excluded}
+                return [
+                    {"schema_name": s, "table_count": 0, "estimated_rows": 0}
+                    for s in inspector.get_schema_names()
+                    if s.lower() not in excl_lower
+                ]
     finally:
         engine.dispose()
 
@@ -304,6 +305,29 @@ def _cfg(c: dict, *keys, default=""):
     return default
 
 
+def _in_docker() -> bool:
+    """True when this process is running inside a Docker container."""
+    return os.path.exists("/.dockerenv")
+
+
+_LOCALHOST_ALIASES = {"localhost", "127.0.0.1", "::1"}
+
+
+def _resolve_host(host: str) -> str:
+    """
+    A Data Source's "localhost" means the machine the user is looking at, but
+    when the backend itself runs inside a Docker container (our default
+    docker-compose setup), "localhost" resolves to that container — not the
+    user's machine. Rewrite it to host.docker.internal in that case, which
+    docker-compose maps to the host machine (see extra_hosts in
+    docker-compose.yml). Left untouched for bare-metal/VM deployments.
+    """
+    if host.lower() in _LOCALHOST_ALIASES and _in_docker():
+        logger.info("Rewriting data source host '%s' -> 'host.docker.internal' (running in Docker)", host)
+        return "host.docker.internal"
+    return host
+
+
 def _build_url(connector_type: str, cfg: dict) -> tuple[URL, dict]:
     """
     Returns (SQLAlchemy URL, create_engine kwargs) for the given connector type.
@@ -311,7 +335,7 @@ def _build_url(connector_type: str, cfg: dict) -> tuple[URL, dict]:
     Raises NotImplementedError for non-SQL connectors.
     """
     ct = connector_type.lower()
-    host     = _cfg(cfg, "host", "hostPort", default="localhost")
+    host     = _resolve_host(_cfg(cfg, "host", "hostPort", default="localhost"))
     port_raw = _cfg(cfg, "port")
     user     = _cfg(cfg, "username", "user")
     password = _cfg(cfg, "password")
