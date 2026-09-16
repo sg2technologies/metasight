@@ -323,7 +323,12 @@ def execute_query_endpoint(
             from app.api.approvals import create_approval_request, validate_approval_token
             if req.approval_token:
                 # Validate and consume the approval token
-                validate_approval_token(db, tenant_id, req.sql, req.approval_token)
+                approval = validate_approval_token(db, tenant_id, req.sql, req.approval_token)
+                if approval.requester_email != user.get("sub", ""):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Only the original requester may execute this approved query.",
+                    )
                 warnings.append("Query executed under admin-approved token.")
             else:
                 # Create approval request and block execution

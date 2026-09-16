@@ -94,7 +94,7 @@ def setup(
             detail="Setup already completed. Use POST /users to add more users.",
         )
 
-    tenant = Tenant(name=payload.tenant_name)
+    tenant = Tenant(name="Default Organization")
     db.add(tenant)
     db.flush()
 

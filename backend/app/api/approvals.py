@@ -99,6 +99,9 @@ def approve_request(
     if approval.status != "pending":
         raise HTTPException(status_code=409, detail=f"Request is already {approval.status}.")
 
+    if approval.requester_email == user.get("sub", ""):
+        raise HTTPException(status_code=403, detail="You cannot approve your own request.")
+
     old_status = approval.status
     approval.status = "approved"
     approval.approver_email = user.get("sub", "")
@@ -153,6 +156,9 @@ def reject_request(
 
     if approval.status != "pending":
         raise HTTPException(status_code=409, detail=f"Request is already {approval.status}.")
+
+    if approval.requester_email == user.get("sub", ""):
+        raise HTTPException(status_code=403, detail="You cannot reject your own request.")
 
     old_status = approval.status
     approval.status = "rejected"

@@ -79,6 +79,25 @@ def _startup_checks():
             "to disable them.", settings.ENV,
         )
 
+    # Community edition supports exactly one tenant per deployment. The DB-level
+    # partial unique index (community_single_tenant_guard migration) is the real
+    # enforcement; this is a defense-in-depth check that refuses to serve traffic
+    # if that invariant was somehow violated (e.g. a restored backup from a
+    # different install, or the guard index missing/dropped by mistake).
+    if register_enterprise is None:
+        from app.core.database import SessionLocal
+        from app.models.models import Tenant
+        _db = SessionLocal()
+        try:
+            _tenant_count = _db.query(Tenant).count()
+            if _tenant_count > 1:
+                raise RuntimeError(
+                    f"Community edition supports exactly one tenant; found {_tenant_count}. "
+                    "Install metasight_enterprise for multi-tenant support."
+                )
+        finally:
+            _db.close()
+
 # ── Middleware ────────────────────────────────────────────────────────────────
 
 @app.middleware("http")
@@ -124,8 +143,11 @@ app.include_router(security_router.router, prefix="/security",  tags=["security"
 app.include_router(departments_router.router, prefix="/catalog/departments", tags=["catalog-departments"])
 app.include_router(agents_router.router,      prefix="/agents",     tags=["agents"])
 
-from app.api import superadmin
-app.include_router(superadmin.router, prefix="/superadmin", tags=["superadmin"])
+# Tenant management (/superadmin/tenants) is Enterprise-only — see
+# metasight_enterprise.superadmin_tenants, registered below by
+# register_enterprise(). Community supports exactly one tenant per
+# deployment (enforced by the community_single_tenant_guard migration),
+# so there is no tenant-CRUD router here at all, not merely a hidden one.
 
 # ── Enterprise Platform (full PAM: access requests, JIT, session recording, ────
 # ── evidence, correlation, risk, compliance) — optional package ───────────────

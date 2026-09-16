@@ -159,7 +159,6 @@ export function Login() {
   // user exists, so this whole screen only ever appears once, on the very
   // first visit to a fresh database.
   const [needsSetup, setNeedsSetup]   = useState<boolean | null>(null); // null = still checking
-  const [tenantName, setTenantName]   = useState('');
   const [setupSecret, setSetupSecret] = useState('');
   const [confirmPw, setConfirmPw]     = useState('');
   const [setupError, setSetupError]   = useState('');
@@ -182,7 +181,7 @@ export function Login() {
     try {
       await api.post(
         '/auth/setup',
-        { tenant_name: tenantName, admin_email: email, admin_password: password },
+        { admin_email: email, admin_password: password },
         { headers: { 'X-Setup-Secret': setupSecret } },
       );
       // Bootstrap created the account — log straight in rather than making
@@ -453,22 +452,6 @@ export function Login() {
                       {setupError}
                     </div>
                   )}
-
-                  {/* Organization name */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
-                      Organization name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={tenantName}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTenantName(e.target.value)}
-                      placeholder="Acme Corp"
-                      className="w-full px-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
-                    />
-                  </div>
 
                   {/* Admin email */}
                   <div>
