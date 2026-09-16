@@ -21,7 +21,8 @@ class TokenResponse(BaseModel):
 
 
 class SetupRequest(BaseModel):
-    tenant_name: str
+    # Community is single-tenant (see community_single_tenant_guard migration)
+    # — the tenant name is fixed at setup time, not chosen by the installer.
     admin_email: EmailStr
     admin_password: str
 

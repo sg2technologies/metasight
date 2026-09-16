@@ -126,6 +126,23 @@ cd /opt/metasight/backend
 sudo -u metasight venv/bin/alembic upgrade head
 ```
 
+**Adding Enterprise to an existing Community install?** Community enforces exactly one tenant per
+deployment with a DB-level guard (a unique index that makes a second `tenants` row impossible,
+`community_single_tenant_guard` migration) — this is intentional, not a bug, and matches Community
+having no tenant-management UI/API at all (that capability is Enterprise-only,
+`metasight_enterprise.superadmin_tenants`). Once `enterprise/` is checked out alongside this repo,
+its migration chain includes a merge migration that drops that guard automatically — but you must
+run `alembic upgrade heads` (**plural**), not `alembic upgrade head`, since Enterprise's migrations
+add a second branch:
+
+```bash
+sudo -u metasight venv/bin/alembic upgrade heads
+```
+
+Skipping this (or running plain `alembic upgrade head`, which only advances one arbitrary branch)
+will leave the single-tenant guard in place, and `POST /superadmin/tenants` will fail with a DB
+integrity error the moment you try to create a second tenant.
+
 ## 7. Redis
 
 Either use the system package (`redis-server`, already installed above and running by default),
