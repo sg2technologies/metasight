@@ -153,6 +153,15 @@ def _inject_limit(sql: str, limit: int, dialect: str = "postgres") -> str:
         return sql
 
 
+#  Oracle unquoted identifiers must start with a letter (A-Z); a leading digit,
+#  underscore, or $ is only legal when the identifier stays quoted.
+_ORACLE_UNQUOTED_IDENT_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_$#]*$')
+
+
+def _oracle_needs_quoting(name: str) -> bool:
+    return not bool(_ORACLE_UNQUOTED_IDENT_RE.match(name))
+
+
 def _oracle_qualify_tables(sql: str, source_id: int, tenant_id: int, db: Session) -> str:
     """
     For Oracle, look up each unqualified table reference in the MetaSight catalog
@@ -171,10 +180,11 @@ def _oracle_qualify_tables(sql: str, source_id: int, tenant_id: int, db: Session
 
     # sqlglot's Oracle dialect quotes every identifier (e.g. ABM_CURRS → "ABM_CURRS",
     # abm_currs → "abm_currs").  Quoted identifiers in Oracle are case-sensitive and
-    # bypass public synonym resolution, so we strip quotes from all standard Oracle
-    # identifiers here.  Identifiers with spaces or other non-standard characters
-    # are intentionally left quoted.
-    sql = re.sub(r'"([A-Za-z$_][A-Za-z0-9_$#]*)"', r'\1', sql)
+    # bypass public synonym resolution, so we strip quotes from standard Oracle
+    # identifiers here.  Identifiers with spaces, a leading digit/underscore/$, or
+    # other non-standard characters are NOT legal as unquoted Oracle identifiers and
+    # are intentionally left quoted (e.g. "_ALL_FILE_GROUPS" must stay quoted).
+    sql = re.sub(r'"([A-Za-z][A-Za-z0-9_$#]*)"', r'\1', sql)
 
     try:
         tree = sqlglot.parse_one(sql)
@@ -217,13 +227,18 @@ def _oracle_qualify_tables(sql: str, source_id: int, tenant_id: int, db: Session
         return sql
 
     for tbl_upper, (user_schema, catalog_schema) in to_fix.items():
+        # Identifiers that aren't legal as unquoted Oracle identifiers (leading
+        # digit/underscore/$, etc.) must stay quoted even after schema-qualifying,
+        # otherwise the qualified reference (e.g. SYS._ALL_FILE_GROUPS) is invalid
+        # syntax and Oracle raises ORA-00911.
+        tbl_ref = f'"{tbl_upper}"' if _oracle_needs_quoting(tbl_upper) else tbl_upper
         if user_schema:
             # Replace WRONG_SCHEMA.TABLE with CATALOG_SCHEMA.TABLE
             pattern = re.compile(
                 r'(?i)' + re.escape(user_schema) + r'\.' +
                 r'(?:"?' + re.escape(tbl_upper) + r'"?)',
             )
-            replacement = f"{catalog_schema}.{tbl_upper}"
+            replacement = f"{catalog_schema}.{tbl_ref}"
             new_sql = pattern.sub(replacement, sql)
             if new_sql != sql:
                 logger.info("Oracle: corrected schema %s.%s → %s.%s", user_schema, tbl_upper, catalog_schema, tbl_upper)
@@ -234,7 +249,7 @@ def _oracle_qualify_tables(sql: str, source_id: int, tenant_id: int, db: Session
                 r'(?<!\.)(?:"' + re.escape(tbl_upper) + r'"|(?<!["\w])' + re.escape(tbl_upper) + r'(?!["\w]))',
                 re.IGNORECASE,
             )
-            replacement = f"{catalog_schema}.{tbl_upper}"
+            replacement = f"{catalog_schema}.{tbl_ref}"
             sql = pattern.sub(replacement, sql)
             logger.debug("Oracle: qualified %s → %s", tbl_upper, replacement)
 
