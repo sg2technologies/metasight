@@ -176,9 +176,17 @@ export function Discovery() {
     if (activeTableDetail.source_type === "mongodb") {
       sql = JSON.stringify({ collection: activeTableDetail.name, filter: {} }, null, 2);
     } else {
+      // Schema-qualify like handlePreview does: an unqualified name lets the
+      // backend's catalog-based lookup pick the schema, which is ambiguous
+      // (and can silently resolve to the wrong table) if the same table name
+      // exists under more than one schema for this source.
       const isOracle = activeTableDetail.source_type === "oracle" || activeTableDetail.source_type === "oracledb";
+      const schemaName = activeTableDetail.schema_name;
       const tableName = isOracle ? activeTableDetail.name.toUpperCase() : activeTableDetail.name;
-      sql = `SELECT * FROM "${tableName}" LIMIT 100`;
+      const fullTableName = schemaName
+        ? `"${isOracle ? schemaName.toUpperCase() : schemaName}"."${tableName}"`
+        : `"${tableName}"`;
+      sql = `SELECT * FROM ${fullTableName} LIMIT 100`;
     }
     navigate('/query', { state: { sourceId: activeTableDetail.source_id, sql } });
   };

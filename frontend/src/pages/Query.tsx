@@ -66,9 +66,21 @@ function PolicyBar({ policy }: { policy: PolicySummary }) {
       {policy.auto_policy && (
         <span className="px-2 py-0.5 rounded border text-[10px] bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-400 border-purple-200 dark:border-purple-900/40 uppercase tracking-wider">Auto-Policy</span>
       )}
-      {masked.length > 0 && <span className="text-yellow-600 dark:text-yellow-500 font-bold uppercase tracking-wider">{masked.length} masked</span>}
-      {tokenized.length > 0 && <span className="text-blue-600 dark:text-blue-500 font-bold uppercase tracking-wider">{tokenized.length} tokenized</span>}
-      {denied.length > 0 && <span className="text-red-600 dark:text-red-500 font-bold uppercase tracking-wider">{denied.length} denied</span>}
+      {masked.length > 0 && (
+        <span className="text-yellow-600 dark:text-yellow-500 font-bold uppercase tracking-wider">
+          {masked.length} masked <span className="font-mono normal-case font-medium opacity-80">({masked.join(', ')})</span>
+        </span>
+      )}
+      {tokenized.length > 0 && (
+        <span className="text-blue-600 dark:text-blue-500 font-bold uppercase tracking-wider">
+          {tokenized.length} tokenized <span className="font-mono normal-case font-medium opacity-80">({tokenized.join(', ')})</span>
+        </span>
+      )}
+      {denied.length > 0 && (
+        <span className="text-red-600 dark:text-red-500 font-bold uppercase tracking-wider">
+          {denied.length} denied <span className="font-mono normal-case font-medium opacity-80">({denied.join(', ')})</span>
+        </span>
+      )}
       {policy.row_filter_applied && <span className="text-brand-indigo font-bold uppercase tracking-wider">Row filter active</span>}
       {policy.is_admin_exempt && (
         <span className="px-2 py-0.5 rounded border text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/40 uppercase tracking-wider">Admin exempt</span>
@@ -171,7 +183,7 @@ function ResultGrid({ result }: { result: QueryResult }) {
   const tokenized = result.policy?.tokenized_columns ?? [];
   const denied = result.policy?.denied_columns ?? [];
 
-  if (columns.length === 0 || rows.length === 0) {
+  if (columns.length === 0) {
     return <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm font-medium">Query executed successfully but returned zero rows.</div>;
   }
 
@@ -196,18 +208,25 @@ function ResultGrid({ result }: { result: QueryResult }) {
             })}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-150 dark:divide-slate-800/50">
-          {rows.map((row, ri) => (
-            <tr key={ri} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-              {columns.map((col, ci) => (
-                <td key={col} className="px-4 py-3 whitespace-nowrap text-sm">
-                  <CellValue value={Array.isArray(row) ? row[ci] : null} col={col} policy={result.policy} auditId={result.audit_id} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
+        {rows.length > 0 && (
+          <tbody className="divide-y divide-slate-150 dark:divide-slate-800/50">
+            {rows.map((row, ri) => (
+              <tr key={ri} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                {columns.map((col, ci) => (
+                  <td key={col} className="px-4 py-3 whitespace-nowrap text-sm">
+                    <CellValue value={Array.isArray(row) ? row[ci] : null} col={col} policy={result.policy} auditId={result.audit_id} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        )}
       </table>
+      {rows.length === 0 && (
+        <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm font-medium border-t border-slate-200 dark:border-slate-800">
+          Query executed successfully but returned zero rows.
+        </div>
+      )}
     </div>
   );
 }
