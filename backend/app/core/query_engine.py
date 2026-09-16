@@ -202,7 +202,7 @@ def _oracle_qualify_tables(sql: str, source_id: int, tenant_id: int, db: Session
             continue
         user_schema = tbl_node.db.upper() if tbl_node.db else None
         try:
-            row = (
+            rows = (
                 db.query(CatSchema.name)
                 .join(CatTable, CatTable.schema_id == CatSchema.id)
                 .join(CatDatabase, CatDatabase.id == CatSchema.database_id)
@@ -211,14 +211,26 @@ def _oracle_qualify_tables(sql: str, source_id: int, tenant_id: int, db: Session
                     CatDataSource.id == source_id,
                     sa_func.upper(CatTable.name) == key,
                 )
-                .first()
+                .distinct()
+                .order_by(CatSchema.name)
+                .all()
             )
         except Exception as exc:
             logger.debug("Oracle schema lookup failed for %s: %s", tbl_name, exc)
             continue
-        if not (row and row[0]):
+        if not rows:
             continue
-        catalog_schema = row[0].upper()
+        if len(rows) > 1:
+            # Same table name cataloged under more than one schema for this source —
+            # picking the wrong one silently targets a different (possibly empty)
+            # table with no SQL error, so surface it instead of guessing quietly.
+            logger.warning(
+                "Oracle: table %s is ambiguous across %d schemas (%s) for source_id=%d; "
+                "defaulting to %s — qualify the table explicitly (SCHEMA.%s) to be certain.",
+                tbl_name, len(rows), ", ".join(r[0] for r in rows), source_id,
+                rows[0][0], tbl_name,
+            )
+        catalog_schema = rows[0][0].upper()
         if user_schema and user_schema == catalog_schema:
             continue  # already using the correct schema
         to_fix[key] = (user_schema, catalog_schema)
