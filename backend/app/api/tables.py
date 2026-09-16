@@ -1,7 +1,7 @@
 """
 API Endpoints for Table Metadata.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 import json
 
@@ -15,7 +15,10 @@ router = APIRouter()
 @router.get("", response_model=TableListResponse)
 def list_tables(
     skip: int = 0,
-    limit: int = 100,
+    # Allow larger pages (e.g. Oracle ERP-scale schemas with thousands of tables) so
+    # callers building a full table list (Discovery/Policies dropdowns) don't need
+    # hundreds of round-trips; still capped to keep a single response bounded.
+    limit: int = Query(100, ge=1, le=2000),
     source_id: int = None,
     schema_name: str = None,
     search: str = None,

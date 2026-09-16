@@ -58,9 +58,26 @@ export async function updateSettings(settings: any) {
   return data;
 }
 
+// Pages through /tables so callers building a full dropdown/list (Discovery,
+// Policies) see every table even on large (e.g. Oracle ERP-scale) schemas,
+// instead of silently being capped at the endpoint's default page size.
+const TABLES_PAGE_SIZE = 2000;
+const TABLES_HARD_CAP = 20000;
+
 export async function fetchTables() {
-  const { data } = await api.get('/tables');
-  return data;
+  const items: any[] = [];
+  let skip = 0;
+  let total = Infinity;
+
+  while (skip < total && items.length < TABLES_HARD_CAP) {
+    const { data } = await api.get('/tables', { params: { skip, limit: TABLES_PAGE_SIZE } });
+    items.push(...(data.items || []));
+    total = data.total ?? items.length;
+    skip += TABLES_PAGE_SIZE;
+    if (!data.items || data.items.length === 0) break;
+  }
+
+  return { items, total };
 }
 
 export async function fetchTableDetail(tableId: number) {
