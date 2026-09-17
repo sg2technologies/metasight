@@ -267,7 +267,70 @@ For direct-DB-access enforcement to actually mean something, grant the monitorin
 broad DBA rights — `isBlockedOp`'s keyword matching is a best-effort tripwire, not a security
 boundary (see `SECURITY_AUDIT.md`).
 
-## 13. Log rotation
+## 13. MetaSight SDK (Enterprise)
+
+This is the inline-enforcement counterpart to section 12's Go agent, using a different mechanism
+than a network proxy: instead of monitoring direct-DB-access sessions after the fact, an
+application imports the `metasight_sdk` Python package and wraps its own DB connection/cursor with
+it. Every query is guarded/rewritten by the same `app/rewriters/sql_rewriter.py` /
+`app/services/policy_engine.py` pipeline that already protects `/query/execute`, but executes with
+the *application's own real driver* (psycopg2, oracledb, pymysql, pymssql, pymongo, ...) —
+no wire protocol is reimplemented, so this works for engines a network proxy realistically
+cannot (Oracle's TNS/Net8 protocol is proprietary; the SDK approach sidesteps that entirely since
+the driver, not MetaSight, speaks it). Requires `metasight_enterprise` (see
+`enterprise/metasight_enterprise/api/sdk.py`) and the separate `enterprise/sdk/` package.
+
+**Current scope — read before deploying:**
+
+- **Python only.** Java/Node/Go equivalents aren't built yet.
+- **SQL (any DBAPI2-compliant driver) + MongoDB.** The SQL wrapper is generic — it works with
+  whatever `.execute()`/`.fetchall()`/`.description` cursor the app already has (Postgres, Oracle,
+  MySQL, MSSQL, ...); only Postgres has been exercised end-to-end so far.
+- **Masking, not tokenization, for tokenize-marked columns** — same deliberate MVP tradeoff as the
+  rest of this product's masking pipeline; there is no client-side-safe tokenization path yet.
+- **Policy decisions require a live MetaSight API call per query** (`POST /sdk/prepare`) — the SDK
+  fails closed on a MetaSight outage (raises `MetaSightGatewayError`), it never silently falls back
+  to executing the original, unrewritten query.
+- `.aggregate()` on a Mongo collection gets the policy decision (deny/mask) but does not rewrite
+  the pipeline itself — only `.find()` gets row-filter injection.
+
+**1. Publish/distribute `enterprise/sdk/`** to wherever your applications install Python packages
+from (this is Enterprise, so the same private-distribution model as the Go agent binaries applies
+— see `enterprise/README.md`):
+
+```bash
+cd enterprise/sdk
+python -m build   # or: pip install -e . for local development against a real app
+```
+
+**2. Generate an API key for each application**, via `POST /sdk/credentials` (admin-only; see
+`enterprise/metasight_enterprise/api/sdk.py`). The response's `api_key` field is shown exactly
+once — store it in the application's own secret store, the same as any other credential. This key
+is **not** scoped to one `DataSource` — an application can query several sources with one key;
+per-table/per-source authorization is handled by the existing `PolicyEngine` department/table
+checks, the same as it would for a JWT-authenticated human user.
+
+**3. In the application**, wrap the existing DB connection/cursor:
+
+```python
+import psycopg2
+from metasight_sdk import MetaSightClient
+
+client = MetaSightClient(api_key="msdk_...", base_url="https://metasight.example.com")
+conn = psycopg2.connect(...)                          # the app's own connection, own credentials
+cursor = client.wrap_cursor(conn.cursor(), source_id=42)
+cursor.execute("SELECT id, ssn FROM employees")        # guarded + rewritten server-side
+rows = cursor.fetchall()                                 # masked locally, never touches the server
+```
+
+For MongoDB: `client.wrap_mongo_collection(real_collection, source_id=...)`, then use `.find()`/
+`.aggregate()` as normal.
+
+Revoke or rotate a key any time via `POST /sdk/credentials/{id}/revoke` or `/rotate-secret` — takes
+effect on the application's next query (a `MetaSightPolicyDenied`/401 is raised, not a silent
+bypass to the unwrapped connection).
+
+## 14. Log rotation
 
 ```
 # /etc/logrotate.d/metasight
@@ -282,7 +345,7 @@ boundary (see `SECURITY_AUDIT.md`).
 }
 ```
 
-## 14. Backups
+## 15. Backups
 
 - **Database**: `pg_dump` on a schedule, stored off-host/off-site. This is the system of record
   for everything — policies, audit logs, PAM access requests/privileges.
@@ -290,7 +353,7 @@ boundary (see `SECURITY_AUDIT.md`).
   separately from the DB dump.
 - **Screenshots/evidence**: back up `SCREENSHOT_STORAGE_DIR` per your evidence-retention policy.
 
-## 15. Upgrading
+## 16. Upgrading
 
 ```bash
 cd /opt/metasight/backend
@@ -302,7 +365,7 @@ cd ../frontend && npm ci && VITE_API_URL=https://metasight.example.com npm run b
 sudo cp -r dist/* /opt/metasight/frontend/dist/
 ```
 
-## 16. Production hardening checklist
+## 17. Production hardening checklist
 
 Go through this before exposing the deployment to real users/data — it maps to the findings in
 [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md):
@@ -332,3 +395,8 @@ Go through this before exposing the deployment to real users/data — it maps to
       reason to run permissively while backfilling scans/policies.
 - [ ] Firewall Postgres/Redis to loopback + the app hosts only; nginx is the only thing that
       should be internet-facing.
+- [ ] If distributing the MetaSight SDK (section 13): each application's API key is stored in that
+      application's own secret store, not committed to source control. Confirmed the target
+      application's DB driver actually returns the fields your policies expect from
+      `cursor.description` (column names) — the SDK masks by name, matching what
+      `/sdk/prepare` returned.
