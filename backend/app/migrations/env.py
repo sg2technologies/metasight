@@ -15,8 +15,9 @@ from app.models import dam     # noqa: F401 — registers Community DAM tables w
 from app.core.database import Base
 
 try:
-    from metasight_enterprise.models import pam            # noqa: F401 — registers Enterprise PAM tables, if installed
-    from metasight_enterprise.models import sdk_credential  # noqa: F401 — registers Enterprise sdk_credentials table, if installed
+    from metasight_enterprise.models import pam                 # noqa: F401 — registers Enterprise PAM tables, if installed
+    from metasight_enterprise.models import sdk_credential       # noqa: F401 — registers Enterprise sdk_credentials table, if installed
+    from metasight_enterprise.models import gateway_credential   # noqa: F401 — registers Enterprise gateway_credentials table, if installed
 except ImportError:
     pass
 

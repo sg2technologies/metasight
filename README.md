@@ -48,6 +48,26 @@ docker compose up -d --build
 
 This is the dev/local path. For a hardened bare-metal/VM production install (systemd units, gunicorn, nginx/TLS, the Go agent, backups, upgrades, hardening checklist — doesn't use `docker-compose.yml` at all), see [DEPLOYMENT.md](DEPLOYMENT.md). Deploying against Oracle EBS/AIX specifically: [DEPLOYMENT-ORACLE-EBS-AIX.md](DEPLOYMENT-ORACLE-EBS-AIX.md).
 
+## Testing a deployment
+
+Once the stack is up (either path above) and bootstrap has run, verify it's actually working:
+
+```bash
+# 1. Containers healthy / API responding
+curl http://localhost:8000/health
+
+# 2. Full end-to-end smoke test — walks every core endpoint (auth, data sources,
+#    catalog scan, policies, query gateway, audit trail) against a running instance
+cd backend
+pip install -r requirements.txt   # only needed outside the docker container
+python scripts/test_endpoints.py
+```
+
+`test_endpoints.py` reads `API_BASE_URL` and `SETUP_SECRET` from `.env`; it prompts for admin
+credentials if `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` aren't set. It prints PASS/FAIL per
+endpoint, so a clean run is a good signal the deployment (or a change to `backend/app/`) hasn't
+broken anything before you rely on it.
+
 ## Project layout
 
 ```

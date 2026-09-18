@@ -267,18 +267,124 @@ For direct-DB-access enforcement to actually mean something, grant the monitorin
 broad DBA rights — `isBlockedOp`'s keyword matching is a best-effort tripwire, not a security
 boundary (see `SECURITY_AUDIT.md`).
 
-## 13. MetaSight SDK (Enterprise)
+## 13. MetaSight Gateway (Enterprise) — primary enforcement path
 
-This is the inline-enforcement counterpart to section 12's Go agent, using a different mechanism
-than a network proxy: instead of monitoring direct-DB-access sessions after the fact, an
-application imports the `metasight_sdk` Python package and wraps its own DB connection/cursor with
-it. Every query is guarded/rewritten by the same `app/rewriters/sql_rewriter.py` /
-`app/services/policy_engine.py` pipeline that already protects `/query/execute`, but executes with
-the *application's own real driver* (psycopg2, oracledb, pymysql, pymssql, pymongo, ...) —
-no wire protocol is reimplemented, so this works for engines a network proxy realistically
-cannot (Oracle's TNS/Net8 protocol is proprietary; the SDK approach sidesteps that entirely since
-the driver, not MetaSight, speaks it). Requires `metasight_enterprise` (see
-`enterprise/metasight_enterprise/api/sdk.py`) and the separate `enterprise/sdk/` package.
+This is the **mandatory** inline-enforcement path: a real PostgreSQL wire-protocol proxy
+applications, users, and BI/ETL tools connect through with their normal Postgres driver or `psql`
+— **no application code change required**, unlike section 14's SDK. Every query is guarded/
+rewritten by the same `app/rewriters/sql_rewriter.py` / `app/services/policy_engine.py` pipeline
+that protects `/query/execute` and the SDK, via `POST /gateway/prepare`
+(`metasight_enterprise/services/prepare.py` — the one shared implementation both the gateway and
+the SDK call, so policy logic never lives twice). Requires `metasight_enterprise` and the separate
+`enterprise/gateway/` Go module.
+
+For this to actually be the enforcement boundary, **the target database must not be reachable
+directly** — firewall it so only the gateway host can connect (see the network topology note
+below). A gateway that clients can simply route around isn't an enforcement point, just a slower
+optional path.
+
+**Current scope — read before deploying:**
+
+- **PostgreSQL only.** MySQL/MSSQL/MongoDB adapters follow the same pattern (protocol-specific
+  listener + the same shared `prepare()`/masking approach) but aren't built yet. **Oracle is an
+  explicitly separate, unscoped research item** — its wire protocol (TNS/Net8) has no open
+  server-side reference implementation anywhere, and reverse-engineering it raises real licensing
+  questions this document can't resolve; don't treat it as "coming soon."
+- **Simple Query protocol only.** Covers `psql`, most BI/reporting tools, and drivers in their
+  default client-side-parameter-binding mode. **Extended Query (prepared statements) is rejected
+  cleanly** — the client gets a normal Postgres error and the connection stays usable, but many
+  ORMs and drivers that use Extended Query unconditionally (e.g. `asyncpg`) will not work through
+  the gateway yet.
+- **Masking, not tokenization**, for tokenize-marked columns — same deliberate tradeoff as the SDK;
+  no async-safe tokenization path in the streaming hot path yet.
+- No Cancel Request support, no HA/load-balancing/multi-instance policy caching this pass — a
+  single gateway instance is a single point of failure for every connection routed through it;
+  plan accordingly (see "Network topology" below) or wait for that fast-follow.
+- `application_name` and client IP are captured from the wire protocol and available to
+  `/gateway/prepare`/`/gateway/audit`, but are not yet `PolicyEngine` decision inputs, and are not
+  yet persisted as their own `AuditLog` columns (a Community core-schema change, out of scope here)
+  — they're logged, not silently dropped, but not queryable from the audit UI yet.
+
+**1. Build the gateway binary** (Go 1.22+ toolchain):
+
+```bash
+cd enterprise/gateway
+go build -o dist/metasight-gateway ./cmd/gateway
+```
+
+**2. Generate a credential for each application/user/tool that should connect through the
+gateway**, via `POST /gateway/credentials` (admin-only; see
+`enterprise/metasight_enterprise/api/gateway.py`). The response's `secret` field is shown exactly
+once. Unlike the SDK's credential, this one is scoped to exactly one `DataSource` — a wire listener
+naturally maps one username to one target database.
+
+**3. TLS is mandatory** — same as the Go agent's own TLS posture, the gateway refuses any client
+that doesn't send `SSLRequest` before `StartupMessage`. For a dev/staging cert:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout gateway.crt -out gateway.key -days 365 \
+  -subj "/CN=metasight-gateway.example.com"
+```
+
+**4. Configure and start the service:**
+
+```bash
+# /etc/metasight/gateway.env
+GATEWAY_HOST=0.0.0.0
+GATEWAY_PORT=6543
+GATEWAY_TLS_CERT=/etc/metasight/gateway.crt
+GATEWAY_TLS_KEY=/etc/metasight/gateway.key
+GATEWAY_API_BASE_URL=http://127.0.0.1:8000
+GATEWAY_INTERNAL_API_KEY=<a freshly generated secret — also set as GATEWAY_INTERNAL_API_KEY in
+                            /etc/metasight/backend.env so metasight-api.service can verify it>
+```
+
+```bash
+sudo cp deploy/systemd/metasight-gateway.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now metasight-gateway
+journalctl -u metasight-gateway -f
+```
+
+**5. Network topology — the part that makes this an actual enforcement boundary.** The gateway
+calls two backend surfaces with very different trust levels: `/gateway/prepare`/`/gateway/audit`
+(routine, one per query) and `GET /gateway/backend-credentials` (returns the **real, plaintext**
+target-database password — must be reachable *only* from the gateway host, never from anywhere
+else). And the target database itself must be firewalled so *only* the gateway's own host/IP can
+reach it — otherwise a client can simply bypass the gateway and connect directly, and none of this
+is actually an enforcement point:
+
+```
+Applications / users / BI tools ──(Postgres protocol, TLS)──▶ MetaSight Gateway
+                                                                       │
+                                          (X-Internal-Key, internal-only) │ (real DB creds)
+                                                                       ▼
+                                                              Target PostgreSQL
+                                                       (security group: ALLOW gateway only,
+                                                        DENY everything else)
+```
+
+**6. Point clients at it** like any other Postgres connection — the gateway's host/port, the
+issued `gateway_username`/secret as the DB user/password, `sslmode=require` (or stronger). Revoke
+or rotate a credential any time via `POST /gateway/credentials/{id}/revoke` or `/rotate-secret` —
+takes effect **immediately**, even on an already-open connection (the next query on that connection
+is rejected), not just on the next new connection.
+
+## 14. MetaSight SDK (Enterprise) — fallback for apps that can't sit behind the gateway
+
+**Use this only when section 13's gateway genuinely isn't an option** — e.g. the target engine has
+no gateway adapter yet (Oracle, MySQL, MongoDB), or the client can't be network-routed through a
+gateway host at all. An application imports the `metasight_sdk` Python package and wraps its own DB
+connection/cursor with it, instead of connecting through a proxy. Every query is guarded/rewritten
+by the same `app/rewriters/sql_rewriter.py` / `app/services/policy_engine.py` pipeline (via the
+same shared `metasight_enterprise/services/prepare.py` the gateway calls), but executes with the
+*application's own real driver* (psycopg2, oracledb, pymysql, pymssql, pymongo, ...) — no wire
+protocol is reimplemented, so this works for engines no gateway adapter covers yet. The tradeoff:
+this requires an application code change (import the wrapper) and, unlike the gateway, there is
+nothing stopping that same application from bypassing MetaSight entirely if the code change is ever
+reverted — it is not a genuine enforcement boundary the way a firewalled gateway is. Requires
+`metasight_enterprise` (see `enterprise/metasight_enterprise/api/sdk.py`) and the separate
+`enterprise/sdk/` package.
 
 **Current scope — read before deploying:**
 
@@ -330,7 +436,7 @@ Revoke or rotate a key any time via `POST /sdk/credentials/{id}/revoke` or `/rot
 effect on the application's next query (a `MetaSightPolicyDenied`/401 is raised, not a silent
 bypass to the unwrapped connection).
 
-## 14. Log rotation
+## 15. Log rotation
 
 ```
 # /etc/logrotate.d/metasight
@@ -345,7 +451,7 @@ bypass to the unwrapped connection).
 }
 ```
 
-## 15. Backups
+## 16. Backups
 
 - **Database**: `pg_dump` on a schedule, stored off-host/off-site. This is the system of record
   for everything — policies, audit logs, PAM access requests/privileges.
@@ -353,19 +459,19 @@ bypass to the unwrapped connection).
   separately from the DB dump.
 - **Screenshots/evidence**: back up `SCREENSHOT_STORAGE_DIR` per your evidence-retention policy.
 
-## 16. Upgrading
+## 17. Upgrading
 
 ```bash
 cd /opt/metasight/backend
 sudo -u metasight git pull   # or deploy new code
 sudo -u metasight venv/bin/pip install -r requirements.txt
 sudo -u metasight venv/bin/alembic upgrade head
-sudo systemctl restart metasight-worker metasight-beat metasight-api
+sudo systemctl restart metasight-worker metasight-beat metasight-api metasight-gateway
 cd ../frontend && npm ci && VITE_API_URL=https://metasight.example.com npm run build
 sudo cp -r dist/* /opt/metasight/frontend/dist/
 ```
 
-## 17. Production hardening checklist
+## 18. Production hardening checklist
 
 Go through this before exposing the deployment to real users/data — it maps to the findings in
 [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md):
@@ -395,8 +501,15 @@ Go through this before exposing the deployment to real users/data — it maps to
       reason to run permissively while backfilling scans/policies.
 - [ ] Firewall Postgres/Redis to loopback + the app hosts only; nginx is the only thing that
       should be internet-facing.
-- [ ] If distributing the MetaSight SDK (section 13): each application's API key is stored in that
-      application's own secret store, not committed to source control. Confirmed the target
-      application's DB driver actually returns the fields your policies expect from
+- [ ] If deploying the MetaSight Gateway (section 13): the target database's security group/
+      firewall allows connections **only** from the gateway host — otherwise clients can bypass
+      the gateway entirely and it isn't a real enforcement boundary. `GET /gateway/backend-
+      credentials` (returns real DB passwords) is reachable only from the gateway host, never
+      publicly. Confirmed the target application actually uses Simple Query protocol (no
+      server-side prepared statements) — the gateway does not support Extended Query yet. Real TLS
+      certificates are in place (not the quick self-signed dev cert from section 13's example).
+- [ ] If distributing the MetaSight SDK (section 14, fallback only): each application's API key is
+      stored in that application's own secret store, not committed to source control. Confirmed the
+      target application's DB driver actually returns the fields your policies expect from
       `cursor.description` (column names) — the SDK masks by name, matching what
       `/sdk/prepare` returned.
