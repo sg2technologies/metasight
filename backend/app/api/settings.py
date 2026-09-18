@@ -63,7 +63,18 @@ def _redact_patch(patch: dict[str, Any]) -> dict[str, Any]:
     safe = copy.deepcopy(patch)
     if safe.get("notifications", {}).get("smtp_password"):
         safe["notifications"]["smtp_password"] = "••••••••"
+    if safe.get("sso", {}).get("client_secret"):
+        safe["sso"]["client_secret"] = "••••••••"
     return safe
+
+
+def _redact_config(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Redact secret fields before returning full settings to the client."""
+    if cfg.get("notifications", {}).get("smtp_password"):
+        cfg["notifications"]["smtp_password"] = "••••••••"
+    if cfg.get("sso", {}).get("client_secret"):
+        cfg["sso"]["client_secret"] = "••••••••"
+    return cfg
 
 
 # ── Public (no auth) ──────────────────────────────────────────────────────────
@@ -84,12 +95,9 @@ def read_settings(
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Full settings for the current tenant. Sensitive notification passwords are redacted."""
+    """Full settings for the current tenant. Sensitive notification/SSO secrets are redacted."""
     cfg = get_settings(user["tenant_id"], db)
-    # Redact SMTP password
-    if cfg.get("notifications", {}).get("smtp_password"):
-        cfg["notifications"]["smtp_password"] = "••••••••"
-    return cfg
+    return _redact_config(cfg)
 
 
 @router.put("")
@@ -103,10 +111,13 @@ def write_settings(
     Only changed keys need to be provided.
     Returns the fully-merged result (smtp_password redacted).
     """
-    # Prevent overwriting smtp_password with the redacted placeholder
+    # Prevent overwriting smtp_password/sso.client_secret with the redacted placeholder
     notif = patch.get("notifications", {})
     if notif.get("smtp_password") == "••••••••":
         del patch["notifications"]["smtp_password"]
+    sso_patch = patch.get("sso", {})
+    if sso_patch.get("client_secret") == "••••••••":
+        del patch["sso"]["client_secret"]
 
     old_cfg = get_settings(user["tenant_id"], db)
     cfg = update_settings(user["tenant_id"], patch, user["sub"], db)
@@ -137,9 +148,7 @@ def write_settings(
     )
     db.commit()
 
-    if cfg.get("notifications", {}).get("smtp_password"):
-        cfg["notifications"]["smtp_password"] = "••••••••"
-    return cfg
+    return _redact_config(cfg)
 
 
 @router.post("/reset", status_code=status.HTTP_200_OK)

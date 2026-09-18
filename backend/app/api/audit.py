@@ -1,11 +1,20 @@
+import csv
+import io
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.core.deps import get_db, require_admin, get_current_user
-from app.models.models import AuditLog, DataChangeAudit, PrivilegedActivity, SessionRecording
+from app.models.models import (
+    AuditLog, DataChangeAudit, PrivilegedActivity, SessionRecording, SecurityEvent,
+)
 from app.schemas.schemas import (
     AuditLogListResponse,
+    ComplianceSummaryResponse,
     DataChangeAuditCreate,
     DataChangeAuditListResponse,
     DataChangeAuditResponse,
@@ -62,6 +71,113 @@ def governance_summary(
             SessionRecording.tenant_id == tenant_id,
             SessionRecording.recording_url.isnot(None),
         ).count(),
+    )
+
+
+@router.get("/compliance/summary/export")
+def compliance_summary_export(
+    start_date: Optional[datetime] = Query(None, description="Inclusive lower bound (ISO 8601)"),
+    end_date: Optional[datetime] = Query(None, description="Inclusive upper bound (ISO 8601)"),
+    format: str = Query("json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_admin),
+):
+    """
+    Community's "basic" compliance report: a rollup of counts/breakdowns over
+    already-collected audit data (query log, data-change history, privileged
+    activity, security bypass events) for a date range — no framework-specific
+    control mapping (SOX/PCI/GDPR/...). That stays Enterprise's
+    metasight_enterprise/api/pam_compliance.py, so there's no overlap between
+    the two: this is "what happened," that is "what happened, mapped to which
+    controls in which framework."
+    """
+    tenant_id = user["tenant_id"]
+
+    def _range(q, col):
+        if start_date:
+            q = q.filter(col >= start_date)
+        if end_date:
+            q = q.filter(col <= end_date)
+        return q
+
+    al_base = db.query(AuditLog).filter(AuditLog.tenant_id == tenant_id)
+    query_log_total = _range(al_base, AuditLog.timestamp).count()
+    query_log_by_action = dict(
+        _range(
+            db.query(AuditLog.action, func.count(AuditLog.id)).filter(AuditLog.tenant_id == tenant_id),
+            AuditLog.timestamp,
+        ).group_by(AuditLog.action).all()
+    )
+    query_log_distinct_users = _range(
+        db.query(func.count(func.distinct(AuditLog.user_email))).filter(AuditLog.tenant_id == tenant_id),
+        AuditLog.timestamp,
+    ).scalar() or 0
+    query_log_total_rows = _range(
+        db.query(func.coalesce(func.sum(AuditLog.row_count), 0)).filter(AuditLog.tenant_id == tenant_id),
+        AuditLog.timestamp,
+    ).scalar() or 0
+
+    dc_base = db.query(DataChangeAudit).filter(DataChangeAudit.tenant_id == tenant_id)
+    data_change_total = _range(dc_base, DataChangeAudit.changed_at).count()
+    data_change_by_op = dict(
+        _range(
+            db.query(DataChangeAudit.operation_type, func.count(DataChangeAudit.id)).filter(DataChangeAudit.tenant_id == tenant_id),
+            DataChangeAudit.changed_at,
+        ).group_by(DataChangeAudit.operation_type).all()
+    )
+
+    pa_base = db.query(PrivilegedActivity).filter(PrivilegedActivity.tenant_id == tenant_id)
+    privileged_total = _range(pa_base, PrivilegedActivity.occurred_at).count()
+    privileged_by_risk = dict(
+        _range(
+            db.query(PrivilegedActivity.risk_level, func.count(PrivilegedActivity.id)).filter(PrivilegedActivity.tenant_id == tenant_id),
+            PrivilegedActivity.occurred_at,
+        ).group_by(PrivilegedActivity.risk_level).all()
+    )
+
+    se_base = _range(db.query(SecurityEvent).filter(SecurityEvent.tenant_id == tenant_id), SecurityEvent.timestamp)
+    security_total = se_base.count()
+    security_blocked = se_base.filter(SecurityEvent.blocked == 1).count()
+    security_distinct_ips = _range(
+        db.query(func.count(func.distinct(SecurityEvent.client_ip))).filter(SecurityEvent.tenant_id == tenant_id),
+        SecurityEvent.timestamp,
+    ).scalar() or 0
+
+    result = ComplianceSummaryResponse(
+        period_start=start_date.isoformat() if start_date else None,
+        period_end=end_date.isoformat() if end_date else None,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        query_log_total=query_log_total,
+        query_log_by_action=query_log_by_action,
+        query_log_distinct_users=query_log_distinct_users,
+        query_log_total_rows_returned=int(query_log_total_rows),
+        data_change_total=data_change_total,
+        data_change_by_operation=data_change_by_op,
+        privileged_activity_total=privileged_total,
+        privileged_activity_by_risk_level=privileged_by_risk,
+        security_bypass_total=security_total,
+        security_bypass_blocked=security_blocked,
+        security_bypass_detected=security_total - security_blocked,
+        security_bypass_distinct_ips=security_distinct_ips,
+    )
+
+    if format == "json":
+        return result
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["metric", "value"])
+    for key, val in result.model_dump().items():
+        if isinstance(val, dict):
+            for subkey, subval in val.items():
+                writer.writerow([f"{key}.{subkey}", subval])
+        else:
+            writer.writerow([key, val])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=metasight_compliance_summary.csv"},
     )
 
 

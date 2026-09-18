@@ -31,12 +31,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, not_
 
 from app.core.deps import get_db, get_current_user, require_admin
+from app.core.encryption import aes_cipher
 from app.models.models import AgentRegistration, SecurityEvent
 
 router = APIRouter()
 
 ONLINE_THRESHOLD = timedelta(minutes=2)
 _NOT_PAM = not_(AgentRegistration.db_type.like("pam%"))
+_KEY_PREFIX_LEN = 12
 
 VALID_OPS = {"SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE",
              "ALTER", "CREATE", "GRANT", "REVOKE", "EXEC", "CALL"}
@@ -124,7 +126,7 @@ class AgentOut(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _enrich(a: AgentRegistration, tenant_id: int, db: Session,
-            reveal_key: bool = False) -> dict:
+            raw_key: Optional[str] = None) -> dict:
     now = datetime.now(timezone.utc)
     last = a.last_seen
     if last and last.tzinfo is None:
@@ -147,7 +149,7 @@ def _enrich(a: AgentRegistration, tenant_id: int, db: Session,
         "db_type":          a.db_type,
         "mode":             "db",
         "source_id":        a.source_id,
-        "api_key":          a.api_key if reveal_key else None,
+        "api_key":          raw_key,
         "last_seen":        a.last_seen,
         "active_sessions":  a.active_sessions or 0,
         "created_at":       a.created_at,
@@ -165,14 +167,17 @@ def _enrich(a: AgentRegistration, tenant_id: int, db: Session,
 
 
 def _resolve_agent(api_key: Optional[str], db: Session) -> AgentRegistration:
-    """Resolve an agent from X-Agent-Key header (used by agent-facing endpoints)."""
-    if not api_key:
+    """Resolve an agent from X-Agent-Key header (used by agent-facing endpoints).
+    Narrows by the indexed key_prefix, then decrypt-and-compares the full key
+    — api_key is encrypted, not directly queryable by value (see
+    AgentRegistration's model docstring)."""
+    if not api_key or len(api_key) < _KEY_PREFIX_LEN:
         raise HTTPException(401, "X-Agent-Key header required")
     agent = db.query(AgentRegistration).filter(
-        AgentRegistration.api_key == api_key,
+        AgentRegistration.key_prefix == api_key[:_KEY_PREFIX_LEN],
         _NOT_PAM,
     ).first()
-    if not agent:
+    if not agent or not secrets.compare_digest(aes_cipher.decrypt(agent.encrypted_api_key), api_key):
         raise HTTPException(401, "Invalid agent key")
     return agent
 
@@ -214,7 +219,8 @@ def register_agent(
         name            = body.name,
         db_type         = body.db_type,
         source_id       = body.source_id,
-        api_key         = api_key,
+        key_prefix        = api_key[:_KEY_PREFIX_LEN],
+        encrypted_api_key = aes_cipher.encrypt(api_key),
         active_sessions = 0,
         created_at      = datetime.now(timezone.utc),
         allowed_ips     = [],
@@ -226,7 +232,7 @@ def register_agent(
     db.add(agent)
     db.commit()
     db.refresh(agent)
-    return _enrich(agent, tid, db, reveal_key=True)
+    return _enrich(agent, tid, db, raw_key=api_key)
 
 
 # ── Agent-facing endpoints (auth via X-Agent-Key) ─────────────────────────────
@@ -401,10 +407,12 @@ def rotate_key(
     ).first()
     if not a:
         raise HTTPException(404, "Agent not found")
-    a.api_key = secrets.token_hex(32)
+    new_key = secrets.token_hex(32)
+    a.key_prefix = new_key[:_KEY_PREFIX_LEN]
+    a.encrypted_api_key = aes_cipher.encrypt(new_key)
     db.commit()
     db.refresh(a)
-    return _enrich(a, tid, db, reveal_key=True)
+    return _enrich(a, tid, db, raw_key=new_key)
 
 
 # ── Policy / Config management ────────────────────────────────────────────────

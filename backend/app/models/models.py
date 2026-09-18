@@ -60,8 +60,26 @@ class User(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
 
+    # TOTP MFA (see app/api/auth.py's /auth/mfa/* endpoints). totp_secret is
+    # populated as soon as enrollment starts but totp_enabled stays False
+    # until the user confirms a real code — a started-but-never-confirmed
+    # enrollment never gates login.
+    totp_secret  = Column(String, nullable=True)
+    totp_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    # OIDC SSO link (see app/api/sso.py). hashed_password stays NOT NULL even
+    # for SSO-only accounts — they get a random, never-verified-against hash
+    # at creation time rather than making every other password-handling
+    # code path deal with a nullable column.
+    sso_subject = Column(String, nullable=True, index=True)
+    sso_issuer  = Column(String, nullable=True)
+
     tenant = relationship("Tenant", back_populates="users")
     department = relationship("Department")
+
+    __table_args__ = (
+        UniqueConstraint("sso_issuer", "sso_subject", name="_users_sso_identity_uc"),
+    )
 
 
 # ── DataSource ────────────────────────────────────────────────────────────────
@@ -314,6 +332,17 @@ class AgentRegistration(Base):
     """
     A MetaSight DB-side agent registered to a tenant.
     The agent authenticates every request using api_key.
+
+    api_key is stored encrypted (AES-GCM via app.core.encryption.aes_cipher —
+    the same mechanism/key already used for DataSource.encrypted_config), not
+    hashed like GatewayCredential/SDKCredential: unlike those, the backend
+    itself needs the plaintext back for one real reason — the "Start Agent"
+    local-testing convenience (app/core/agent_runner.py) spawns agent.exe
+    itself and must pass the key as a CLI argument. key_prefix (first 12
+    chars of the raw key, non-secret) allows an indexed lookup before the
+    decrypt-and-compare step, the same role GatewayCredential's
+    gateway_username / SDKCredential's key_prefix play for their own
+    (hash-based, non-reversible) secrets.
     """
     __tablename__ = "agent_registrations"
 
@@ -322,7 +351,8 @@ class AgentRegistration(Base):
     name            = Column(String, nullable=False)          # hostname / label
     db_type         = Column(String, nullable=False)
     source_id       = Column(Integer, nullable=True)          # linked DataSource (optional)
-    api_key         = Column(String, unique=True, nullable=False, index=True)
+    key_prefix        = Column(String(16), unique=True, nullable=False, index=True)
+    encrypted_api_key = Column(String(256), nullable=False)
     last_seen       = Column(DateTime(timezone=True), nullable=True)
     active_sessions = Column(Integer, nullable=False, default=0)
     created_at      = Column(DateTime(timezone=True), default=_utcnow)

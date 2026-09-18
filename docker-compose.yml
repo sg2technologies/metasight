@@ -118,6 +118,11 @@ services:
       CORS_ORIGINS: '["http://localhost:3000"]'
       ENV: development
       AGENT_CALLBACK_URL: http://localhost:8000
+      # Shared secret between this service and the `gateway` service below —
+      # gates GET /gateway/backend-credentials (returns real DB passwords),
+      # must never be reachable from anywhere but the gateway container. Dev
+      # default only; set a real generated secret for any real deployment.
+      GATEWAY_INTERNAL_API_KEY: ${GATEWAY_INTERNAL_API_KEY:-dev_gateway_internal_key_change_me}
     ports:
       - "8000:8000"
     volumes:
@@ -127,6 +132,36 @@ services:
       # running on your machine but outside this compose stack (e.g. a local
       # Postgres install). "localhost" from inside this container means the
       # container itself, not your host — use host.docker.internal instead.
+      - "host.docker.internal:host-gateway"
+
+  # ── MetaSight Gateway (transparent PostgreSQL wire-protocol proxy) ──────────
+  gateway:
+    build:
+      context: ./backend/gateway
+    container_name: metasight-gateway
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      GATEWAY_HOST: "0.0.0.0"
+      GATEWAY_PORT: "6543"
+      GATEWAY_API_BASE_URL: http://backend:8000
+      GATEWAY_INTERNAL_API_KEY: ${GATEWAY_INTERNAL_API_KEY:-dev_gateway_internal_key_change_me}
+      # TLS is mandatory — docker-entrypoint.sh generates a self-signed dev
+      # cert on first start if these paths don't already exist (they won't,
+      # on a fresh volume). Not for production use — see DEPLOYMENT.md.
+      GATEWAY_TLS_CERT: /app/certs/gateway.crt
+      GATEWAY_TLS_KEY: /app/certs/gateway.key
+      # MySQL listener is opt-in and off by default here — it's new and not
+      # yet verified against a real MySQL client (see DEPLOYMENT.md). Set
+      # this and uncomment the 3306 port mapping below to try it.
+      # GATEWAY_MYSQL_PORT: "3306"
+    ports:
+      - "6543:6543"
+      # - "3306:3306"   # only if GATEWAY_MYSQL_PORT is set above
+    volumes:
+      - gateway_certs:/app/certs
+    extra_hosts:
       - "host.docker.internal:host-gateway"
 
   # ── Celery worker (async scan jobs) ─────────────────────────────────────────
@@ -184,4 +219,6 @@ volumes:
   redis_data:
     driver: local
   frontend_node_modules:
+    driver: local
+  gateway_certs:
     driver: local

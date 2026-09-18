@@ -27,7 +27,7 @@ def _get_user_or_ip(request: Request) -> str:
 from app.core.config import settings
 from app.core.exceptions import ExceptionMiddleware
 from app.core.logging import setup_logging
-from app.api import auth, sources, scans, tables, users, connectors
+from app.api import auth, sso, sources, scans, tables, users, connectors
 from app.api import policies, catalog, query as query_router, audit as audit_router, catalog_schemas
 from app.api import approvals as approvals_router
 from app.api import settings as settings_router
@@ -35,6 +35,7 @@ from app.api import security as security_router
 from app.api import departments as departments_router
 from app.api import downloads as downloads_router
 from app.api import agents as agents_router
+from app.api import gateway as gateway_router
 
 setup_logging()
 
@@ -127,6 +128,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(auth.router,         prefix="/auth",       tags=["auth"])
+app.include_router(sso.router,          prefix="/auth/sso",   tags=["sso"])
 app.include_router(users.router,        prefix="/users",      tags=["users"])
 app.include_router(sources.router,      prefix="/sources",    tags=["sources"])
 app.include_router(scans.router,        prefix="/scans",      tags=["scans"])
@@ -142,6 +144,7 @@ app.include_router(settings_router.router, prefix="/settings",  tags=["settings"
 app.include_router(security_router.router, prefix="/security",  tags=["security"])
 app.include_router(departments_router.router, prefix="/catalog/departments", tags=["catalog-departments"])
 app.include_router(agents_router.router,      prefix="/agents",     tags=["agents"])
+app.include_router(gateway_router.router,      prefix="/gateway",    tags=["gateway"])
 
 # Tenant management (/superadmin/tenants) is Enterprise-only — see
 # metasight_enterprise.superadmin_tenants, registered below by

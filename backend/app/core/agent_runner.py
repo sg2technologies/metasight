@@ -112,7 +112,7 @@ def get_db_agent_cmd(agent_id: int, db: Session) -> list[str]:
         agent_path,
         "--mode", "db",
         "--server", settings.AGENT_CALLBACK_URL,
-        "--api-key", agent.api_key,
+        "--api-key", aes_cipher.decrypt(agent.encrypted_api_key),
         "--db-type", db_type,
         "--db-host", host,
         "--db-port", str(port),

@@ -15,15 +15,17 @@ This repository is the **Community edition**: the full data catalog, PII discove
 - **Data catalog** across 25+ SQL/warehouse engines plus MongoDB, Cassandra, Elasticsearch/OpenSearch, DynamoDB, Redis, S3, and Oracle ERP, with automatic fallback to an OpenMetadata ingestion workflow for the long tail of BI/pipeline/ML-catalog connectors
 - **PII discovery** — pattern-based column classification across the catalog
 - **Masking & tokenization** — role-based masking for email, phone, SSN, credit card, name, address, IP, DOB, government ID, and more; reversible tokenization where you need it back
-- **Query gateway** — SQL rewriting that injects masking and row-level security, blocks and flags risky queries, and routes CRITICAL-risk queries through an approval workflow
-- **Rule-based risk scoring** on every query (denied/masked/tokenized columns, join depth, row filters) — not AI, just transparent thresholds
+- **Query gateway (HTTP API)** — SQL rewriting that injects masking and row-level security, blocks and flags risky queries, and routes CRITICAL-risk queries through an approval workflow
+- **MetaSight Gateway (wire protocol)** — a transparent PostgreSQL/MySQL proxy applications and BI tools connect through with their normal driver, `psql`, or `mysql` client — **no code change required**; every query gets the same masking/RLS/policy enforcement as the HTTP gateway above, inline
+- **Rule-based risk scoring** on every query (denied/masked/tokenized columns, join depth, row filters) — transparent thresholds, not a black box
 - **Native, agentless DB activity monitoring (DAM)** — passive polling against the source database, no agent required
 - **DB-mode agent** for database-session interception, with binary downloads and self-install scripts built in
 - **Security posture checks** — per-source privilege audits, hardening guides, and in-database hardening you can apply directly
-- **Audit trail & governance center** across every data change and privileged action
-- **Multi-tenant admin** — tenants, users, departments, a superadmin console
-
-Full detail, with the exact files backing each item, is in [EDITIONS.md](EDITIONS.md).
+- **Audit trail & governance center** across every data change and privileged action, with a downloadable compliance summary export
+- **Single sign-on (OIDC) & two-factor authentication (TOTP)** — admin-configurable from Settings, no redeploy required
+- **SIEM & chat alerting** — Slack, Microsoft Teams, or a generic structured-JSON webhook for any SIEM ingestion endpoint
+- **Role-based access control** with department-scoped policies, plus maker-checker approval on high-risk queries
+- **Admin console** — users, departments, and organization-wide settings for your deployment
 
 ## Installation
 
@@ -36,6 +38,7 @@ docker compose up -d --build
 
 - **Frontend**: http://localhost:3000
 - **Backend / API**: http://localhost:8000
+- **MetaSight Gateway** (PostgreSQL wire-protocol proxy, MySQL also supported): `localhost:6543` — connect with `psql` or any compatible driver once you've created a gateway credential (admin nav → Gateway Credentials, or `POST /gateway/credentials`); the `gateway` container generates its own self-signed dev TLS cert on first start. Enable the MySQL listener alongside it by setting `GATEWAY_MYSQL_PORT` in `docker-compose.yml`.
 - Migrations run automatically on first boot (the `backend` container runs `alembic upgrade head` before starting).
 - One-time bootstrap (create the first tenant + admin), same as the production flow in [DEPLOYMENT.md](DEPLOYMENT.md):
 
@@ -86,18 +89,19 @@ Stack: FastAPI + PostgreSQL (metadata store) + Redis/Celery (async scan jobs) + 
 
 ## Enterprise edition
 
-Need access requests with just-in-time privilege grants, session recording, cross-session correlation, an evidence repository for audits, or compliance reporting? **MetaSight Enterprise** builds on this same Community engine with full PAM (privileged access management).
+**MetaSight Enterprise** builds on this same Community engine with full privileged access management (PAM), broader database coverage, and compliance-grade reporting — for organizations that need the whole package under one roof.
 
-Enterprise is a **separate, proprietary product**, privately distributed — its access-request/JIT workflow, session recording, correlation engine, evidence repository, and compliance reporting are not included in this repository (see [License](#license) below). It's a paid, self-hosted upgrade — same "runs entirely inside your environment" model as Community, never SaaS.
+Enterprise is a **separate, proprietary product**, privately distributed — a paid, self-hosted upgrade with the same "runs entirely inside your environment" model as Community, never SaaS (see [License](#license) below).
 
 **What Enterprise adds:**
 
-- **Access requests & JIT** — request → approve → time-boxed privilege grant → automatic revoke
-- **Session recording & evidence** — workstation screenshots, cross-session correlation, evidence packaging for audits
-- **Endpoint agent** — screen/clipboard/USB monitoring, beyond Community's DB-session-level agent
-- **Compliance reporting** built on the same audit data Community already collects
-
-The exact Community/Enterprise boundary — mapped to real files, not marketing copy — is in [EDITIONS.md](EDITIONS.md).
+- **Access requests & just-in-time privilege** — request → approve → time-boxed grant → automatic revoke, with maker-checker enforced on every approval
+- **Session recording & replay** — workstation screenshots and full session evidence, correlated across systems for a single timeline of "who did what, when"
+- **Endpoint agent** — screen, clipboard, and USB monitoring, beyond Community's database-session-level agent
+- **Behavioral risk analytics** — session and privilege-level risk scoring that builds on Community's query-level rules
+- **Compliance framework reporting** — SOX, PCI-DSS, ISO 27001, GDPR, and DPDP reports mapped to real controls, backed by the same audit data Community already collects
+- **Full multi-tenant administration** — run many tenants from one deployment, with a dedicated superadmin console
+- **Broader database engine coverage** — Oracle and additional engines via the MetaSight SDK, for applications that can't sit behind a network gateway
 
 **→ [metasight.pro](https://metasight.pro/)**
 

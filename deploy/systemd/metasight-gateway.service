@@ -1,5 +1,5 @@
 [Unit]
-Description=MetaSight Gateway (Enterprise — PostgreSQL wire-protocol enforcement gateway)
+Description=MetaSight Gateway (PostgreSQL wire-protocol enforcement gateway)
 After=network.target metasight-api.service
 Wants=metasight-api.service
 
@@ -7,14 +7,14 @@ Wants=metasight-api.service
 Type=simple
 User=metasight
 Group=metasight
-WorkingDirectory=/opt/metasight/enterprise/gateway
+WorkingDirectory=/opt/metasight/backend/gateway
 EnvironmentFile=/etc/metasight/gateway.env
 
 # A separate Go binary, not part of the FastAPI app — it owns raw TCP sockets
 # and long-lived per-connection streaming state, and calls back to the API
 # (metasight-api.service) for every policy decision via /gateway/prepare.
-# Build with: cd enterprise/gateway && go build -o dist/metasight-gateway ./cmd/gateway
-ExecStart=/opt/metasight/enterprise/gateway/dist/metasight-gateway
+# Build with: cd backend/gateway && go build -o dist/metasight-gateway ./cmd/gateway
+ExecStart=/opt/metasight/backend/gateway/dist/metasight-gateway
 
 Restart=always
 RestartSec=5
@@ -23,7 +23,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/opt/metasight/enterprise/gateway/logs
+ReadWritePaths=/opt/metasight/backend/gateway/logs
 LimitNOFILE=65536
 
 [Install]

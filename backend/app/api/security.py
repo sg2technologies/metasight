@@ -39,6 +39,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_admin
+from app.core.encryption import aes_cipher
 from app.models.models import AgentRegistration, DataSource, SecurityEvent
 from app.services.security_checker import (
     check_source_security,
@@ -58,11 +59,21 @@ router = APIRouter()
 
 # ── Agent-key auth helper ─────────────────────────────────────────────────────
 
+_KEY_PREFIX_LEN = 12
+
+
 def _resolve_agent(x_agent_key: str, db: Session) -> AgentRegistration:
+    """Narrow by the indexed key_prefix, then decrypt-and-compare the full
+    key (api_key is encrypted, not directly queryable by value — see
+    AgentRegistration's model docstring for why it's encryption, not a hash,
+    unlike GatewayCredential/SDKCredential)."""
+    if not x_agent_key or len(x_agent_key) < _KEY_PREFIX_LEN:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid agent API key")
     agent = db.query(AgentRegistration).filter(
-        AgentRegistration.api_key == x_agent_key
+        AgentRegistration.key_prefix == x_agent_key[:_KEY_PREFIX_LEN]
     ).first()
-    if not agent:
+    if not agent or not secrets.compare_digest(aes_cipher.decrypt(agent.encrypted_api_key), x_agent_key):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid agent API key")
     return agent
@@ -179,7 +190,8 @@ def create_agent(
         name=payload.name,
         db_type=payload.db_type,
         source_id=payload.source_id,
-        api_key=api_key,
+        key_prefix=api_key[:_KEY_PREFIX_LEN],
+        encrypted_api_key=aes_cipher.encrypt(api_key),
     )
     db.add(agent)
     db.flush()
@@ -399,7 +411,8 @@ def _fire_bypass_alert(
     auto_blocked: bool,
     db: Session,
 ) -> None:
-    """Send Slack / Teams webhook if configured. Non-blocking — swallows all errors."""
+    """Send Slack / Teams / generic SIEM webhook if configured. Non-blocking —
+    swallows all errors."""
     try:
         from app.services.settings_service import get_settings
         cfg = get_settings(tenant_id, db)
@@ -433,6 +446,29 @@ def _fire_bypass_alert(
                         "text":     text_msg,
                     }
                 httpx.post(webhook_url, json=body, timeout=5)
+            except Exception:
+                pass
+
+        generic_url = notif.get("generic_webhook_url")
+        if generic_url:
+            try:
+                # Structured JSON, not the Slack/Teams markdown text above —
+                # any SIEM ingestion endpoint (Splunk HEC-style) can consume
+                # this shape directly, no chat-formatting to parse back out.
+                httpx.post(generic_url, json={
+                    "event":         "bypass_attempt",
+                    "severity":      label,
+                    "tenant_id":     tenant_id,
+                    "auto_blocked":  auto_blocked,
+                    "db_type":       payload.db_type,
+                    "database":      payload.database,
+                    "db_user":       payload.db_user,
+                    "client_ip":     payload.client_ip,
+                    "app_name":      payload.app_name,
+                    "session_pid":   payload.session_pid,
+                    "sql":           (payload.current_sql or "")[:200],
+                    "timestamp":     payload.timestamp,
+                }, timeout=5)
             except Exception:
                 pass
     except Exception:

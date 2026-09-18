@@ -14,11 +14,13 @@ backend/celerybeat-schedule.*
 !.env.example
 !.env.production.example
 
-# ── Go agent ──────────────────────────────────────────────────────────────────
+# ── Go agent / gateway ────────────────────────────────────────────────────────
 backend/agent/dist/
 backend/agent/gomodcache/
 backend/agent/*.exe
 backend/agent/*.exe~
+backend/gateway/dist/
+backend/gateway/certs/
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 frontend/node_modules/

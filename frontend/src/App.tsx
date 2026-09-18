@@ -21,6 +21,9 @@ import { Discovery } from './pages/Discovery';
 import { TableManagement } from './pages/TableManagement';
 import { Agents } from './pages/Agents';
 import { BlockedCommands } from './pages/BlockedCommands';
+import { GatewayCredentials } from './pages/GatewayCredentials';
+import { MyAccount } from './pages/MyAccount';
+import { SSOCallback } from './pages/SSOCallback';
 
 import { isSuperAdmin, getUserRole } from './api';
 import { SuperAdmin } from './pages/SuperAdmin';
@@ -66,6 +69,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/sso/callback" element={<SSOCallback />} />
         
         <Route
           path="/superadmin"
@@ -92,12 +96,14 @@ export default function App() {
           <Route path="audit" element={<AdminRoute><AuditLog /></AdminRoute>} />
           <Route path="governance-audit" element={<AdminRoute><GovernanceAuditCenter /></AdminRoute>} />
           <Route path="query" element={<Query />} />
+          <Route path="my-account" element={<MyAccount />} />
           <Route path="settings"  element={<AdminRoute><Settings /></AdminRoute>} />
           <Route path="security"  element={<AdminRoute><Security /></AdminRoute>} />
           <Route path="discovery" element={<AdminRoute><Discovery /></AdminRoute>} />
           <Route path="table-management" element={<AdminRoute><TableManagement /></AdminRoute>} />
           <Route path="agents" element={<AdminRoute><Agents /></AdminRoute>} />
           <Route path="blocked-commands" element={<AdminRoute><BlockedCommands /></AdminRoute>} />
+          <Route path="gateway-credentials" element={<AdminRoute><GatewayCredentials /></AdminRoute>} />
           {/* Plugin routes (PAM in Enterprise; empty registry in Community —
               see plugins/pam/index.ts) */}
           {pamPlugin.routes.map(({ path, element, requiresAdmin }) => (

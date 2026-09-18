@@ -5,11 +5,11 @@ Thanks for considering a contribution to MetaSight Community.
 ## Scope of this repository
 
 This repo is the Community edition only. Full PAM (access requests/JIT,
-session recording, correlation, evidence, compliance reporting) lives in a
-separate, private Enterprise distribution — see [EDITIONS.md](EDITIONS.md)
-for the exact boundary. PRs that try to add Enterprise-shaped features here
-will likely be redirected rather than merged; open an issue first if you're
-not sure which side of the line something falls on.
+session recording, correlation, evidence, compliance framework reporting)
+lives in a separate, private Enterprise distribution. PRs that try to add
+Enterprise-shaped features here will likely be redirected rather than
+merged; open an issue first if you're not sure which side of the line
+something falls on.
 
 ## Before you start
 
