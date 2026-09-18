@@ -39,7 +39,8 @@ tasks, or UI — there's nothing to unlock and nothing to bypass.
   clipboard/USB monitoring) lives at `/pam/agents`.
 - **Migrations**: two Alembic branches rooted at the same revision.
   Community's chain ends at `add_agent_policy_cols`; Enterprise's `pam`
-  branch (`pam_001_full_schema → pam_002_jit`) lives in
+  branch (`pam_001_full_schema → pam_002_jit → pam_003_drop_single_tenant_guard
+  → pam_004_sdk_credentials → pam_005_gateway_credentials`) lives in
   `enterprise/metasight_enterprise/migrations/versions/`. Community-only
   deployments run `alembic upgrade head`; combined deployments run
   `alembic upgrade heads` (plural).
@@ -65,6 +66,8 @@ tasks, or UI — there's nothing to unlock and nothing to bypass.
 | **Access requests / JIT** | — | Full: request → approve → time-boxed privilege grant → auto-revoke sweep (`metasight_enterprise/services/pam_jit.py`, Celery beat) |
 | **Session recording & evidence** | — | Full: workstation screenshots, session correlation, evidence packaging for audits (`metasight_enterprise/api/pam_sessions.py`, `pam_evidence.py`, `pam_correlation.py`) |
 | **Compliance reporting** | — | Full: `metasight_enterprise/api/pam_compliance.py` |
+| **MetaSight Gateway** (primary) | — | MVP: a mandatory PostgreSQL wire-protocol proxy (`enterprise/gateway/`, Go, built on `pgx/pgproto3`) — applications/users/BI tools connect through it with their normal Postgres driver or `psql`, **no code change required**. Every query runs through the same rewrite/policy/masking pipeline as `/query/execute`, via a shared `POST /gateway/prepare` (`metasight_enterprise/services/prepare.py` — the one implementation both the gateway and the SDK call). Scope: **PostgreSQL only**, **Simple Query protocol only** (no prepared statements/Extended Query yet), gateway-issued credentials scoped to one `DataSource`, Vault-brokered backend credentials the client never sees. Requires the target database to be network-firewalled to the gateway host to actually be an enforcement boundary — see `DEPLOYMENT.md` section 13. |
+| **MetaSight SDK** (fallback) | — | MVP: a driver-wrapper client library (`enterprise/sdk/metasight_sdk/`, Python only) for engines/situations the gateway doesn't cover yet (Oracle, MySQL, MongoDB, or clients that can't be network-routed through a gateway host) — an application wraps its own DB connection/cursor with it, executing with its own real driver (no wire-protocol reimplementation, works for any DBAPI2 SQL engine plus MongoDB). Same shared `prepare()` pipeline as the gateway; masking is applied client-side since raw rows only ever exist in the application's own process. Requires an application code change and is not a genuine enforcement boundary the way a firewalled gateway is — nothing stops the change from being reverted. Tokenize-marked columns return masked, not tokenized, in both the gateway and the SDK. |
 
 ## What "Community" does not mean
 
