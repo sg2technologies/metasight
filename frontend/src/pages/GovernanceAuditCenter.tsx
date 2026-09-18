@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   Search, History, ShieldAlert, Video, ChevronDown, ChevronUp,
-  ArrowRight, RefreshCw, Eye, EyeOff, Tag, Lock, Check, X, Shield, Activity
+  ArrowRight, RefreshCw, Eye, EyeOff, Tag, Lock, Check, X, Shield, Activity, Download
 } from 'lucide-react';
 import { api, isAdmin } from '../api';
 import { cn } from '../lib/utils';
@@ -140,6 +140,29 @@ export function GovernanceAuditCenter() {
   const [page, setPage] = useState(0);
   const limit = 50;
 
+  const [exportingCompliance, setExportingCompliance] = useState(false);
+  const handleExportCompliance = async () => {
+    setExportingCompliance(true);
+    try {
+      const res = await api.get('/audit/compliance/summary/export', {
+        params: { format: 'csv' },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `metasight_compliance_summary_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to export compliance summary.');
+    } finally {
+      setExportingCompliance(false);
+    }
+  };
+
   const fetchSummary = useCallback(async () => {
     try {
       const res = await api.get('/audit/governance/summary');
@@ -220,11 +243,22 @@ export function GovernanceAuditCenter() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Governance Audit Center</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Supervise schema overrides, review high-risk commands, and watch session activity replays.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Governance Audit Center</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Supervise schema overrides, review high-risk commands, and watch session activity replays.
+          </p>
+        </div>
+        <button
+          onClick={handleExportCompliance}
+          disabled={exportingCompliance}
+          className="flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+          title="Download a summary of query, data-change, privileged-activity, and security event history for a selected period"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {exportingCompliance ? 'Exporting…' : 'Export Compliance Summary'}
+        </button>
       </div>
 
       {error && (

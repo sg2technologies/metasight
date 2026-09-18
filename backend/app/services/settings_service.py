@@ -76,6 +76,21 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "alert_emails": [],
         "slack_webhook_url": None,
         "teams_webhook_url": None,
+        "generic_webhook_url": None,   # structured JSON, any SIEM ingestion endpoint
+    },
+    "sso": {
+        "enabled": False,
+        "provider_name": "SSO",          # shown on the "Continue with ..." login button
+        "issuer_url": None,               # OIDC issuer — discovery doc at {issuer_url}/.well-known/openid-configuration
+        "client_id": None,
+        "client_secret": None,            # stored encrypted at rest, redacted on read (see app/api/settings.py)
+        "redirect_uri": None,             # e.g. https://metasight.example.com/auth/sso/callback
+        "scopes": ["openid", "email", "profile"],
+        # Where to send the browser after a successful login, e.g.
+        # https://metasight.example.com (no path). Only needed when the
+        # frontend isn't served from the same origin as redirect_uri above
+        # (e.g. separate dev ports) — defaults to redirect_uri's own origin.
+        "frontend_redirect_url": None,
     },
 }
 
@@ -138,4 +153,8 @@ def get_public_settings(tenant_id: int, db: Session) -> dict:
         "password_require_uppercase":  cfg["security"]["password_require_uppercase"],
         "password_require_number":     cfg["security"]["password_require_number"],
         "password_require_special":    cfg["security"]["password_require_special"],
+        # SSO — enough for the login page to show/hide a "Continue with ..."
+        # button; never client_id/client_secret/issuer_url here.
+        "sso_enabled":       cfg["sso"]["enabled"],
+        "sso_provider_name": cfg["sso"]["provider_name"],
     }

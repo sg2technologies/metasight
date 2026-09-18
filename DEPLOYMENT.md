@@ -5,12 +5,14 @@ a FastAPI backend, a Celery worker + beat scheduler, a React frontend, a Postgre
 and a Go agent that runs on (or near) each monitored database.
 
 **Community vs Enterprise**: this repo (`backend/`, `frontend/`) is the Community edition —
-catalog, PII discovery, masking/tokenization/RLS, the policy engine, and native/agentless DAM
-polling. Full PAM (access requests/JIT, session recording, endpoint screen/clipboard/USB
-monitoring, correlation, evidence, risk analytics, compliance reporting) lives in the separate
-`enterprise/` directory and is optional — a Community-only install simply never registers the
-`/pam/*` routes or the PAM nav section, no flag to flip. See `enterprise/README.md`. This guide
-covers Community; where a step differs for Enterprise it says so explicitly.
+catalog, PII discovery, masking/tokenization/RLS, the policy engine, native/agentless DAM polling,
+and the MetaSight Gateway (`backend/gateway/`, PostgreSQL today). Full PAM (access requests/JIT,
+session recording, endpoint screen/clipboard/USB monitoring, correlation, evidence, risk
+analytics, compliance reporting) plus the MetaSight SDK (the fallback for engines the Gateway
+doesn't cover yet — Oracle, MySQL, MongoDB) live in the separate `enterprise/` directory and are
+optional — a Community-only install simply never registers the `/pam/*` or `/sdk/*` routes, no
+flag to flip. See `enterprise/README.md`. This guide covers Community; where a step differs for
+Enterprise it says so explicitly.
 
 This guide deploys the whole stack on a single Linux host under systemd — no Docker required for
 the application tier (matches the target chosen for this deployment). Before following it, read
@@ -267,16 +269,16 @@ For direct-DB-access enforcement to actually mean something, grant the monitorin
 broad DBA rights — `isBlockedOp`'s keyword matching is a best-effort tripwire, not a security
 boundary (see `SECURITY_AUDIT.md`).
 
-## 13. MetaSight Gateway (Enterprise) — primary enforcement path
+## 13. MetaSight Gateway — transparent enforcement path (Community)
 
-This is the **mandatory** inline-enforcement path: a real PostgreSQL wire-protocol proxy
-applications, users, and BI/ETL tools connect through with their normal Postgres driver or `psql`
-— **no application code change required**, unlike section 14's SDK. Every query is guarded/
-rewritten by the same `app/rewriters/sql_rewriter.py` / `app/services/policy_engine.py` pipeline
-that protects `/query/execute` and the SDK, via `POST /gateway/prepare`
-(`metasight_enterprise/services/prepare.py` — the one shared implementation both the gateway and
-the SDK call, so policy logic never lives twice). Requires `metasight_enterprise` and the separate
-`enterprise/gateway/` Go module.
+This is the transparent, no-application-code-change inline-enforcement path: a real database
+wire-protocol proxy applications, users, and BI/ETL tools connect through with their normal DB
+driver or `psql` — unlike section 14's Enterprise SDK, which requires importing a wrapper into
+the application itself. Every query is guarded/rewritten by the same `app/rewriters/sql_rewriter.py`
+/ `app/services/policy_engine.py` pipeline that protects `/query/execute` and the Enterprise SDK,
+via `POST /gateway/prepare` (`app/services/gateway_prepare.py` — the one shared implementation
+both the gateway and the SDK call, so policy logic never lives twice). Ships in Community —
+`backend/gateway/`, a standalone Go module, no `metasight_enterprise` dependency.
 
 For this to actually be the enforcement boundary, **the target database must not be reachable
 directly** — firewall it so only the gateway host can connect (see the network topology note
@@ -308,15 +310,15 @@ optional path.
 **1. Build the gateway binary** (Go 1.22+ toolchain):
 
 ```bash
-cd enterprise/gateway
+cd backend/gateway
 go build -o dist/metasight-gateway ./cmd/gateway
 ```
 
 **2. Generate a credential for each application/user/tool that should connect through the
-gateway**, via `POST /gateway/credentials` (admin-only; see
-`enterprise/metasight_enterprise/api/gateway.py`). The response's `secret` field is shown exactly
-once. Unlike the SDK's credential, this one is scoped to exactly one `DataSource` — a wire listener
-naturally maps one username to one target database.
+gateway**, via `POST /gateway/credentials` (admin-only; see `app/api/gateway.py`), or from the
+UI's **Gateway Credentials** page (admin nav). The response's `secret` field is shown exactly once.
+Unlike the Enterprise SDK's credential, this one is scoped to exactly one `DataSource` — a wire
+listener naturally maps one username to one target database.
 
 **3. TLS is mandatory** — same as the Go agent's own TLS posture, the gateway refuses any client
 that doesn't send `SSLRequest` before `StartupMessage`. For a dev/staging cert:
@@ -370,6 +372,37 @@ or rotate a credential any time via `POST /gateway/credentials/{id}/revoke` or `
 takes effect **immediately**, even on an already-open connection (the next query on that connection
 is rejected), not just on the next new connection.
 
+**7. MySQL support (same binary, opt-in listener).** Set `GATEWAY_MYSQL_PORT` (e.g. `3306`) in
+`gateway.env` to also start a MySQL wire-protocol listener alongside the Postgres one — same TLS
+cert, same `GATEWAY_API_BASE_URL`/`GATEWAY_INTERNAL_API_KEY`, same `GatewayCredential` model (create
+a credential the same way as step 2; a credential's target `DataSource` determines which protocol
+it's actually used over — a Postgres-typed source over the Postgres listener, a MySQL-typed source
+over the MySQL one). No separate credential type, no separate audit trail.
+
+**MySQL-specific current scope — read before deploying:**
+
+- **Auth is `mysql_clear_password` over mandatory TLS** — the same cleartext-over-TLS trust model
+  the Postgres listener already uses, forced because MySQL's default challenge-response auth methods
+  require the *server* to know the plaintext password up front, which this product deliberately never
+  stores (only a salted hash, validated via the same `/gateway/authenticate` HTTP call the Postgres
+  listener uses). **Some clients need to opt in explicitly**: the `mysql` CLI needs
+  `--enable-cleartext-plugin`; most JDBC/Python/Node connectors accept it automatically once the
+  connection is already TLS. A connection that never negotiates TLS is rejected outright, same as
+  Postgres's `SSLRequest`-before-`StartupMessage` requirement.
+- **No prepared statements** (`COM_STMT_PREPARE`/`COM_STMT_EXECUTE`) — rejected cleanly with
+  `ER_NOT_SUPPORTED_YET`, the same scope limit as the Postgres listener's Extended Query rejection.
+  Drivers/ORMs that always use server-side prepared statements won't work through this listener yet.
+- **No `COM_FIELD_LIST`** (deprecated since MySQL 5.7.11 but still sent by some older tools) — rejected.
+- Masking, row cap (10,000), no HA/multi-instance policy caching — same tradeoffs as the Postgres
+  listener, for the same reasons.
+- **Not yet exercised against a real MySQL client or server in this repo's own testing** — the Go
+  module builds/vets/tests clean and the auth/query flow was implemented by reading
+  `go-mysql-org/go-mysql`'s source directly (not a hand-rolled wire protocol — same principle as the
+  Postgres listener's use of `pgx/pgproto3`), but no Docker/live-MySQL environment was available to
+  run an actual `mysql` CLI or driver against it this session. **Test this with a real `mysql` CLI
+  (`mysql --host=<gateway-host> --port=<GATEWAY_MYSQL_PORT> -u <gw_user> -p
+  --enable-cleartext-plugin --ssl-mode=REQUIRED`) before relying on it in any real deployment.**
+
 ## 14. MetaSight SDK (Enterprise) — fallback for apps that can't sit behind the gateway
 
 **Use this only when section 13's gateway genuinely isn't an option** — e.g. the target engine has
@@ -377,7 +410,7 @@ no gateway adapter yet (Oracle, MySQL, MongoDB), or the client can't be network-
 gateway host at all. An application imports the `metasight_sdk` Python package and wraps its own DB
 connection/cursor with it, instead of connecting through a proxy. Every query is guarded/rewritten
 by the same `app/rewriters/sql_rewriter.py` / `app/services/policy_engine.py` pipeline (via the
-same shared `metasight_enterprise/services/prepare.py` the gateway calls), but executes with the
+same shared `app/services/gateway_prepare.py` the gateway calls), but executes with the
 *application's own real driver* (psycopg2, oracledb, pymysql, pymssql, pymongo, ...) — no wire
 protocol is reimplemented, so this works for engines no gateway adapter covers yet. The tradeoff:
 this requires an application code change (import the wrapper) and, unlike the gateway, there is

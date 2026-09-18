@@ -20,6 +20,60 @@ class TokenResponse(BaseModel):
     token_type: str
 
 
+class LoginResponse(BaseModel):
+    """POST /auth/login's actual response shape: either a real token (MFA
+    not enabled / already satisfied) or an mfa_token the client must pass to
+    POST /auth/mfa/challenge along with a TOTP code to get the real token."""
+    access_token: Optional[str] = None
+    token_type: Optional[str] = None
+    mfa_required: bool = False
+    mfa_token: Optional[str] = None
+
+
+class MFAChallengeRequest(BaseModel):
+    mfa_token: str
+    code: str
+
+
+class MFAEnrollResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+    qr_code_png_base64: str
+
+
+class MFAEnrollConfirmRequest(BaseModel):
+    code: str
+
+
+class MFADisableRequest(BaseModel):
+    password: str
+
+
+# ── Compliance summary export (Community's own rollup — Enterprise's
+# framework-mapped reports live separately in pam_compliance.py) ─────────────
+
+class ComplianceSummaryResponse(BaseModel):
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+    generated_at: str
+
+    query_log_total: int
+    query_log_by_action: dict[str, int]
+    query_log_distinct_users: int
+    query_log_total_rows_returned: int
+
+    data_change_total: int
+    data_change_by_operation: dict[str, int]
+
+    privileged_activity_total: int
+    privileged_activity_by_risk_level: dict[str, int]
+
+    security_bypass_total: int
+    security_bypass_blocked: int
+    security_bypass_detected: int
+    security_bypass_distinct_ips: int
+
+
 class SetupRequest(BaseModel):
     # Community is single-tenant (see community_single_tenant_guard migration)
     # — the tenant name is fixed at setup time, not chosen by the installer.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Database, Users, Table, LogOut, Shield, BookOpen, Activity, Terminal, Settings2, ShieldCheck, FileSearch, Bot, Sun, Moon } from 'lucide-react';
+import { Database, Users, Table, LogOut, Shield, BookOpen, Activity, Terminal, Settings2, ShieldCheck, FileSearch, Bot, Network, Sun, Moon, UserCog } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getTokenPayload } from '../api';
 import { pamPlugin } from '../plugins/pam';
@@ -53,6 +53,7 @@ export function Layout() {
       { name: 'Governance Audit', path: '/governance-audit', icon: FileSearch },
       { name: 'Security', path: '/security', icon: ShieldCheck },
       { name: 'Agents', path: '/agents', icon: Bot },
+      { name: 'Gateway Credentials', path: '/gateway-credentials', icon: Network },
       { name: 'Blocked Commands', path: '/blocked-commands', icon: Terminal },
       { name: 'Users', path: '/users', icon: Users },
       { name: 'Settings', path: '/settings', icon: Settings2 },
@@ -190,6 +191,14 @@ export function Layout() {
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
+
+            <Link
+              to="/my-account"
+              className="flex-1 flex items-center justify-center p-2 rounded-lg bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-900 transition-colors"
+              title="My Account"
+            >
+              <UserCog className="h-4 w-4" />
+            </Link>
 
             <button
               onClick={handleLogout}

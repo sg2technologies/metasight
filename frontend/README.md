@@ -1,8 +1,8 @@
 # MetaSight Frontend
 
 React 19 + Vite UI for MetaSight (Community edition). See the repo root
-[README.md](../README.md) for what MetaSight is and [EDITIONS.md](../EDITIONS.md)
-for the Community/Enterprise boundary.
+[README.md](../README.md) for what MetaSight is and does, including the
+Enterprise edition.
 
 ## Prerequisites
 

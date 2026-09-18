@@ -3,7 +3,7 @@ import { api } from '../api';
 import {
   Settings2, Palette, Shield, Zap, EyeOff, ClipboardList, Bell,
   Save, RotateCcw, Mail, CheckCircle, XCircle, Loader2, Info,
-  KeyRound, AlertTriangle, RefreshCw, Lock,
+  KeyRound, AlertTriangle, RefreshCw, Lock, Fingerprint,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -43,7 +43,13 @@ interface NotificationsCfg {
   smtp_from: string | null; smtp_tls: boolean;
   alert_on_critical_risk: boolean; alert_on_approval_request: boolean;
   alert_emails: string[]; slack_webhook_url: string | null;
-  teams_webhook_url: string | null;
+  teams_webhook_url: string | null; generic_webhook_url: string | null;
+}
+interface SsoCfg {
+  enabled: boolean; provider_name: string;
+  issuer_url: string | null; client_id: string | null;
+  client_secret: string | null; redirect_uri: string | null;
+  scopes: string[]; frontend_redirect_url: string | null;
 }
 interface FullConfig {
   branding: BrandingCfg;
@@ -52,6 +58,7 @@ interface FullConfig {
   masking: MaskingCfg;
   audit: AuditCfg;
   notifications: NotificationsCfg;
+  sso: SsoCfg;
 }
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
@@ -63,6 +70,7 @@ const TABS = [
   { id: 'masking',       label: 'Data Masking',    icon: EyeOff        },
   { id: 'audit',         label: 'Audit & Logs',    icon: ClipboardList },
   { id: 'notifications', label: 'Notifications',   icon: Bell          },
+  { id: 'sso',           label: 'Single Sign-On',  icon: Fingerprint   },
   { id: 'vault',         label: 'Vault',           icon: KeyRound      },
 ] as const;
 
@@ -606,7 +614,62 @@ function NotificationsTab({
         <Field label="Microsoft Teams Webhook URL">
           <TextInput value={cfg.teams_webhook_url ?? ''} onChange={v => set({ teams_webhook_url: v || null })} placeholder="https://outlook.office.com/webhook/..." />
         </Field>
+        <Field label="Generic SIEM Webhook URL">
+          <TextInput value={cfg.generic_webhook_url ?? ''} onChange={v => set({ generic_webhook_url: v || null })} placeholder="https://your-siem.example.com/ingest" />
+        </Field>
       </div>
+      <p className="text-xs text-slate-450 mt-2">
+        Slack/Teams webhooks send chat-formatted alerts. The generic webhook sends structured JSON
+        (event, severity, db_type, db_user, client_ip, sql, ...) any SIEM ingestion endpoint can consume directly.
+      </p>
+    </div>
+  );
+}
+
+function SsoTab({ cfg, set }: { cfg: SsoCfg; set: (p: Partial<SsoCfg>) => void }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between py-2 border-b border-slate-100 mb-2">
+        <div>
+          <span className="text-sm font-semibold text-slate-700">Enable OIDC Single Sign-On</span>
+          <p className="text-xs text-slate-450">Adds a "Continue with ..." button to the login page.</p>
+        </div>
+        <Toggle value={cfg.enabled} onChange={v => set({ enabled: v })} />
+      </div>
+
+      <SectionTitle>Identity Provider</SectionTitle>
+      <div className="grid grid-cols-2 gap-x-6">
+        <Field label="Provider Display Name">
+          <TextInput value={cfg.provider_name} onChange={v => set({ provider_name: v })} placeholder="Okta" />
+        </Field>
+        <Field label="Issuer URL" hint="OIDC discovery is read from {issuer}/.well-known/openid-configuration">
+          <TextInput value={cfg.issuer_url ?? ''} onChange={v => set({ issuer_url: v || null })} placeholder="https://your-tenant.okta.com" />
+        </Field>
+        <Field label="Client ID">
+          <TextInput value={cfg.client_id ?? ''} onChange={v => set({ client_id: v || null })} placeholder="0oa1b2c3d4e5f6g7h8i9" />
+        </Field>
+        <Field label="Client Secret">
+          <TextInput value={cfg.client_secret ?? ''} onChange={v => set({ client_secret: v || null })} placeholder="••••••••" type="password" />
+        </Field>
+        <Field label="Redirect URI" hint="Register this exact URL with your IdP as the callback/redirect URI.">
+          <TextInput value={cfg.redirect_uri ?? ''} onChange={v => set({ redirect_uri: v || null })} placeholder="https://metasight.example.com/auth/sso/callback" />
+        </Field>
+        <Field label="Frontend Redirect URL" hint="Only needed if the frontend isn't served from the same origin as the Redirect URI above (e.g. local dev).">
+          <TextInput value={cfg.frontend_redirect_url ?? ''} onChange={v => set({ frontend_redirect_url: v || null })} placeholder="https://metasight.example.com" />
+        </Field>
+      </div>
+
+      <SectionTitle>Scopes</SectionTitle>
+      <Field label="OIDC Scopes" hint="openid is required. email is required to auto-provision new users.">
+        <TagInput values={cfg.scopes} onChange={v => set({ scopes: v })} placeholder="openid" />
+      </Field>
+
+      <p className="text-xs text-slate-450 mt-4">
+        First-time SSO logins link to an existing account by email if one exists, or auto-provision a
+        new account with the least-privileged role (analyst) — promote to admin manually afterward if
+        needed. MFA (if enabled on this Community edition) is not required for SSO logins; the IdP is
+        trusted to handle its own second factor.
+      </p>
     </div>
   );
 }
@@ -705,6 +768,8 @@ export function Settings() {
             testState={smtpTest}
           />
         );
+      case 'sso':
+        return <SsoTab cfg={config.sso} set={p => patch('sso', p)} />;
       case 'vault':
         return <VaultTab />;
     }

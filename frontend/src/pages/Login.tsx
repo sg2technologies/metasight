@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, API_URL } from '../api';
 
 interface PublicBranding {
   platform_name: string;
@@ -14,6 +14,8 @@ interface PublicBranding {
   password_require_uppercase: boolean;
   password_require_number: boolean;
   password_require_special: boolean;
+  sso_enabled: boolean;
+  sso_provider_name: string;
 }
 
 /* ─── Feature cards data ─────────────────────────────────────────────────── */
@@ -204,6 +206,15 @@ export function Login() {
     }
   };
 
+  // ── MFA (TOTP) second step ─────────────────────────────────────────────
+  // /auth/login returns { mfa_required: true, mfa_token } instead of a real
+  // access_token when the account has MFA enabled — this screen collects
+  // the 6-digit code and exchanges both for a real token via /auth/mfa/challenge.
+  const [mfaToken, setMfaToken]   = useState<string | null>(null);
+  const [mfaCode, setMfaCode]     = useState('');
+  const [mfaError, setMfaError]   = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -215,12 +226,31 @@ export function Login() {
       const res = await api.post('/auth/login', formData, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
+      if (res.data.mfa_required) {
+        setMfaToken(res.data.mfa_token);
+        return;
+      }
       localStorage.setItem('token', res.data.access_token);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMfaError('');
+    setMfaLoading(true);
+    try {
+      const res = await api.post('/auth/mfa/challenge', { mfa_token: mfaToken, code: mfaCode });
+      localStorage.setItem('token', res.data.access_token);
+      navigate('/');
+    } catch (err: any) {
+      setMfaError(err.response?.data?.detail || 'Invalid code. Please try again.');
+    } finally {
+      setMfaLoading(false);
     }
   };
 
@@ -402,7 +432,12 @@ export function Login() {
 
             {/* Form heading */}
             <div className="mb-8">
-              {needsSetup ? (
+              {mfaToken ? (
+                <>
+                  <h2 className="text-2xl font-bold text-white mb-1">Two-factor authentication</h2>
+                  <p className="text-sm text-slate-500">Enter the 6-digit code from your authenticator app</p>
+                </>
+              ) : needsSetup ? (
                 <>
                   <h2 className="text-2xl font-bold text-white mb-1">Create your first admin</h2>
                   <p className="text-sm text-slate-500">
@@ -430,7 +465,57 @@ export function Login() {
               {/* Top gradient stripe */}
               <div className="h-[2px]" style={{ background: 'linear-gradient(90deg,#38BDF8,#818CF8,#A855F7)' }}/>
 
-              {needsSetup === null ? (
+              {mfaToken ? (
+                <form className="px-8 py-8 space-y-5" onSubmit={handleMfaSubmit}>
+                  {mfaError && (
+                    <div
+                      className="px-4 py-3 rounded-lg text-sm text-red-300 flex items-start gap-2"
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                      </svg>
+                      {mfaError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                      Authentication code
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      required
+                      autoFocus
+                      maxLength={6}
+                      value={mfaCode}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000"
+                      className="w-full px-4 py-2.5 rounded-lg text-center text-lg tracking-[0.5em] text-white placeholder-slate-600 outline-none transition-all duration-200"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={mfaLoading || mfaCode.length !== 6}
+                    className="w-full py-3 px-4 rounded-lg text-sm font-bold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: 'linear-gradient(135deg, #38BDF8 0%, #818CF8 50%, #A855F7 100%)',
+                      boxShadow: mfaLoading ? 'none' : '0 4px 24px rgba(129,140,248,0.4), 0 1px 0 rgba(255,255,255,0.1) inset',
+                    }}
+                  >
+                    {mfaLoading ? 'Verifying…' : 'Verify'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMfaToken(null); setMfaCode(''); setMfaError(''); }}
+                    className="w-full text-center text-xs text-slate-500 hover:text-slate-300"
+                  >
+                    Back to sign in
+                  </button>
+                </form>
+              ) : needsSetup === null ? (
                 /* Still checking /auth/setup-status — avoid flashing one form then the other */
                 <div className="px-8 py-8 flex items-center justify-center gap-2 text-sm text-slate-500">
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -662,6 +747,23 @@ export function Login() {
                       </span>
                     )}
                   </button>
+
+                  {branding?.sso_enabled && (
+                    <>
+                      <div className="flex items-center gap-3 text-[10px] text-slate-600 uppercase tracking-widest">
+                        <div className="flex-1 h-px bg-slate-800" />
+                        or
+                        <div className="flex-1 h-px bg-slate-800" />
+                      </div>
+                      <a
+                        href={`${API_URL}/auth/sso/login`}
+                        className="w-full py-3 px-4 rounded-lg text-sm font-semibold text-slate-200 flex items-center justify-center gap-2 transition-all duration-200"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}
+                      >
+                        Continue with {branding.sso_provider_name}
+                      </a>
+                    </>
+                  )}
                 </form>
               )}
             </div>

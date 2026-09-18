@@ -1,10 +1,10 @@
 # MetaSight Backend
 
-FastAPI backend for MetaSight (Community edition) — self-hosted, multi-tenant
-data catalog, PII discovery, masking/tokenization, and the query gateway.
-See the repo root [README.md](../README.md) for what MetaSight is and
-[EDITIONS.md](../EDITIONS.md) for the Community/Enterprise boundary. Not
-SaaS — this runs entirely inside your own environment.
+FastAPI backend for MetaSight (Community edition) — self-hosted data catalog,
+PII discovery, masking/tokenization, and the query gateway. See the repo
+root [README.md](../README.md) for what MetaSight is and does, including
+the Enterprise edition. Not SaaS — this runs entirely inside your own
+environment.
 
 ## Prerequisites
 - Python 3.9+
