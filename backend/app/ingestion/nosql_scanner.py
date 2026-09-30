@@ -110,12 +110,8 @@ def _bson_type(value: Any) -> str:
         return "unknown"
 
 
-def scan_mongodb(
-    config: dict,
-    data_source_id: int,
-    tenant_id: int,
-    db: Session,
-) -> dict:
+def _mongo_client(config: dict):
+    """Connect and ping. Returns (client, host, port, configured_database)."""
     try:
         import pymongo
     except ImportError:
@@ -154,21 +150,66 @@ def scan_mongodb(
     try:
         client.admin.command("ping")
     except Exception as exc:
+        client.close()
         raise ConnectionError(f"MongoDB connection failed: {exc}") from exc
+    return client, host, port, database
+
+
+def _mongo_db_names(client, database: str) -> list[str]:
+    """Configured database if set, else every non-system database."""
+    if database:
+        return [database]
+    try:
+        return [
+            n for n in client.list_database_names()
+            if n not in _MONGO_SYSTEM_DBS
+        ]
+    except Exception:
+        return ["unknown"]
+
+
+def list_mongodb_databases(config: dict) -> list[dict]:
+    """
+    Schema-browser listing for MongoDB: one entry per database (MongoDB's
+    closest analogue to a schema). table_count = collections, estimated_rows =
+    documents per dbStats (metadata only, no collection scans).
+    """
+    client, _, _, database = _mongo_client(config)
+    try:
+        out = []
+        for name in _mongo_db_names(client, database):
+            try:
+                stats = client[name].command("dbStats")
+                out.append({
+                    "schema_name": name,
+                    "table_count": int(stats.get("collections", 0)),
+                    "estimated_rows": int(stats.get("objects", 0)),
+                })
+            except Exception as exc:
+                logger.warning("dbStats failed for MongoDB database %s: %s", name, exc)
+                out.append({"schema_name": name, "table_count": 0, "estimated_rows": 0})
+        return out
+    finally:
+        client.close()
+
+
+def scan_mongodb(
+    config: dict,
+    data_source_id: int,
+    tenant_id: int,
+    db: Session,
+    selected_schemas: Optional[list] = None,
+) -> dict:
+    client, host, port, database = _mongo_client(config)
 
     counts = {"schemas": 0, "tables": 0, "columns": 0}
 
-    # Determine which databases to scan
-    if database:
-        db_names = [database]
-    else:
-        try:
-            db_names = [
-                n for n in client.list_database_names()
-                if n not in _MONGO_SYSTEM_DBS
-            ]
-        except Exception:
-            db_names = [database or "unknown"]
+    # Determine which databases to scan; the schema browser's selection
+    # (MongoDB databases) narrows it further.
+    db_names = _mongo_db_names(client, database)
+    if selected_schemas:
+        wanted = set(selected_schemas)
+        db_names = [n for n in db_names if n in wanted]
 
     for db_name in db_names:
         database_id = _upsert_db(db, db_name, data_source_id, tenant_id)
@@ -747,15 +788,30 @@ def is_nosql(connector_type: str) -> bool:
     return connector_type.lower() in _NOSQL_SCANNERS
 
 
+# Connectors whose schema browser lists selectable "schemas" (for MongoDB,
+# databases). Others return [] and the UI offers a scan-everything button.
+_NOSQL_SCHEMA_LISTERS = {
+    "mongodb": list_mongodb_databases,
+}
+
+
+def list_nosql_schemas(connector_type: str, config: dict) -> list[dict]:
+    lister = _NOSQL_SCHEMA_LISTERS.get(connector_type.lower())
+    return lister(config) if lister else []
+
+
 def run_nosql_scan(
     connector_type: str,
     config: dict,
     data_source_id: int,
     tenant_id: int,
     db: Session,
+    selected_schemas: Optional[list] = None,
 ) -> dict:
     """
     Entry point for all non-SQL connectors.
+    selected_schemas is honoured by connectors in _NOSQL_SCHEMA_LISTERS;
+    the rest always scan everything.
     Raises ImportError with pip hint if the required driver is missing.
     Raises NotImplementedError for connector types without a scanner.
     """
@@ -766,4 +822,6 @@ def run_nosql_scan(
             f"No scanner implemented for '{connector_type}'. "
             "Supported NoSQL types: " + ", ".join(sorted(_NOSQL_SCANNERS))
         )
+    if ct in _NOSQL_SCHEMA_LISTERS:
+        return scanner(config, data_source_id, tenant_id, db, selected_schemas=selected_schemas)
     return scanner(config, data_source_id, tenant_id, db)

@@ -24,6 +24,7 @@ class ScanSyncRequest(BaseModel):
 @router.post("/{source_id}/scan", response_model=ScanTriggerResponse, status_code=status.HTTP_202_ACCEPTED)
 def trigger_scan(
     source_id: int,
+    request_body: Optional[ScanSyncRequest] = Body(default=None),
     db: Session = Depends(get_db),
     user: dict = Depends(require_admin),
 ):
@@ -56,7 +57,8 @@ def trigger_scan(
     db.refresh(scan)
 
     try:
-        run_ingestion_task.delay(scan.id)
+        selected = request_body.schemas if request_body else None
+        run_ingestion_task.delay(scan.id, selected)
     except Exception as exc:
         logger.error("Failed to enqueue scan %s: %s", scan.id, exc)
         scan.status = ScanRunStatus.FAILED
