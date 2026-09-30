@@ -204,9 +204,9 @@ def list_schemas_with_stats(source_type: str, config: dict) -> list:
     Does NOT write to the DB — used for the schema browser UI before running a scan.
     Each item: {"schema_name": str, "table_count": int, "estimated_rows": int}
     """
-    from app.ingestion.nosql_scanner import is_nosql
+    from app.ingestion.nosql_scanner import is_nosql, list_nosql_schemas
     if is_nosql(source_type):
-        return []
+        return list_nosql_schemas(source_type, config)
 
     url, engine_kwargs = _build_url(source_type, config)
     engine = create_engine(url, **engine_kwargs)
@@ -355,7 +355,7 @@ def _build_url(connector_type: str, cfg: dict) -> tuple[URL, dict]:
         return (
             URL.create(driver, username=user, password=password,
                        host=host, port=port(5432), database=database or "postgres"),
-            {},
+            {"connect_args": {"connect_timeout": 10}},
         )
 
     # ── MySQL family ──────────────────────────────────────────────────────────
@@ -373,7 +373,7 @@ def _build_url(connector_type: str, cfg: dict) -> tuple[URL, dict]:
             return (
                 URL.create("mssql+pymssql", username=user, password=password,
                            host=host, port=port(1433), database=database),
-                {},
+                {"connect_args": {"login_timeout": 10}},
             )
         _require("pyodbc", "pyodbc")
         driver_str = "ODBC Driver 17 for SQL Server"
@@ -381,7 +381,7 @@ def _build_url(connector_type: str, cfg: dict) -> tuple[URL, dict]:
             URL.create("mssql+pyodbc", username=user, password=password,
                        host=host, port=port(1433), database=database,
                        query={"driver": driver_str}),
-            {},
+            {"connect_args": {"timeout": 10}},
         )
 
     # ── Oracle ────────────────────────────────────────────────────────────────
@@ -404,6 +404,7 @@ def _build_url(connector_type: str, cfg: dict) -> tuple[URL, dict]:
                         "host": host,
                         "port": port(1521),
                         "service_name": service,
+                        "tcp_connect_timeout": 10,
                     }
                 },
             )
@@ -1107,7 +1108,8 @@ def run_native_scan(
     """
     from app.ingestion.nosql_scanner import is_nosql, run_nosql_scan
     if is_nosql(source_type):
-        return run_nosql_scan(source_type, config, data_source_id, tenant_id, db)
+        return run_nosql_scan(source_type, config, data_source_id, tenant_id, db,
+                              selected_schemas=selected_schemas)
 
     url, engine_kwargs = _build_url(source_type, config)
 

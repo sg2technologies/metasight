@@ -59,7 +59,7 @@ def revoke_expired_pam_privileges():
     retry_backoff=True,
     retry_backoff_max=120,
 )
-def run_ingestion_task(self, scan_id: int):
+def run_ingestion_task(self, scan_id: int, selected_schemas: list | None = None):
     db = SessionLocal()
     try:
         scan = db.query(ScanRun).filter(ScanRun.id == scan_id).first()
@@ -83,7 +83,8 @@ def run_ingestion_task(self, scan_id: int):
 
         try:
             from app.ingestion.native_scanner import run_native_scan
-            counts = run_native_scan(ds.type, config, ds.id, scan.tenant_id, db, scan_id=scan.id)
+            counts = run_native_scan(ds.type, config, ds.id, scan.tenant_id, db,
+                                     selected_schemas=selected_schemas, scan_id=scan.id)
             scan.status = ScanRunStatus.COMPLETED
             scan.error = f"Discovered: {counts['schemas']} schemas, {counts['tables']} tables, {counts['columns']} columns"
             logger.info("Scan %s completed: %s", scan_id, counts)
@@ -102,6 +103,10 @@ def run_ingestion_task(self, scan_id: int):
         except Exception as exc:
             scan.status = ScanRunStatus.FAILED
             scan.error = str(exc)
+            if str(exc) == "Scan stopped by user":
+                # Cancelled via /scans/{id}/cancel — don't let autoretry restart it.
+                logger.warning("Scan %s stopped by user", scan_id)
+                return
             logger.exception("Native scan failed for scan %s", scan_id)
             raise  # let Celery autoretry handle it
         finally:

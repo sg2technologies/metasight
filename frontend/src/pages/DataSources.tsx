@@ -401,13 +401,17 @@ function SchemaBrowserModal({ source, onClose, onScanComplete }: {
       setLoading(true);
       setFetchError('');
       try {
-        const res = await api.get(`/scans/${source.id}/schemas`);
+        const res = await api.get(`/scans/${source.id}/schemas`, { timeout: 60_000 });
         const data: SchemaStatOut[] = res.data;
         setSchemas(data);
         // Auto-select all by default
         setSelected(new Set(data.map((s) => s.schema_name)));
       } catch (err: any) {
-        setFetchError(err.response?.data?.detail || 'Failed to connect and list schemas');
+        setFetchError(
+          err.code === 'ECONNABORTED'
+            ? 'Timed out listing schemas — check the data source host/port is reachable from the MetaSight backend'
+            : err.response?.data?.detail || 'Failed to connect and list schemas'
+        );
       } finally {
         setLoading(false);
       }
@@ -438,17 +442,17 @@ function SchemaBrowserModal({ source, onClose, onScanComplete }: {
 
   const startScan = async (schemasToScan?: string[]) => {
     const scanSchemas = schemasToScan ?? Array.from(selected);
+    const body = scanSchemas.length > 0 ? { schemas: scanSchemas } : {};
     setSyncDone(null);
     try {
       // Async path: Celery worker running — get scan_id and poll
-      const res = await api.post(`/scans/${source.id}/scan`, {});
+      const res = await api.post(`/scans/${source.id}/scan`, body);
       setActiveScanId(res.data.scan_id);
       setShowProgress(true);
     } catch {
       // Celery not available — fire sync scan without awaiting (don't block UI)
       setActiveScanId(null);
       setShowProgress(true);
-      const body = scanSchemas.length > 0 ? { schemas: scanSchemas } : {};
       api.post(`/scans/${source.id}/scan/sync`, body)
         .then(() => setSyncDone({ ok: true, message: 'Scan completed successfully' }))
         .catch((err: any) => setSyncDone({
@@ -526,6 +530,9 @@ function SchemaBrowserModal({ source, onClose, onScanComplete }: {
             <div className="py-12 text-center">
               <Database className="h-10 w-10 mx-auto mb-2 text-slate-300 dark:text-slate-700 animate-pulse" />
               <p className="text-slate-500 text-sm">No schemas found in this data source.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Schema-less sources (e.g. document stores, object storage) can still be scanned in full.
+              </p>
             </div>
           )}
 
@@ -631,6 +638,22 @@ function SchemaBrowserModal({ source, onClose, onScanComplete }: {
         </div>
 
         {/* Footer */}
+        {!loading && schemas.length === 0 && !fetchError && (
+          <div className="border-t border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-900/60 rounded-b-2xl">
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={onClose} className="premium-btn-secondary px-4 py-2 text-sm">Close</button>
+              <button
+                onClick={() => startScan([])}
+                disabled={!isAdmin()}
+                className="premium-btn-primary px-4 py-2 text-sm gap-2"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Scan All Collections
+              </button>
+            </div>
+          </div>
+        )}
+
         {!loading && schemas.length > 0 && (
           <div className="border-t border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-900/60 rounded-b-2xl">
             <div className="flex items-center justify-between">
